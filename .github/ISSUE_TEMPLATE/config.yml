@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentación de requisitos
+    url: https://github.com/tu-usuario/tu-repo/blob/main/docs/requisitos.md
+    about: Consulta el consolidado de requisitos antes de crear uno nuevo
