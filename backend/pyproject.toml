@@ -10,6 +10,11 @@ requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1.0",
   "openai>=1.66,<3.0",
+  # Sin tope de version fijado a proposito: instalen con
+  # `pip install google-genai` y luego fijen aqui la version real que
+  # quedo resuelta (revisando antes el changelog del SDK), en vez de
+  # confiar en un rango que no verificamos.
+  "google-genai",
   "pydantic>=2.10,<3.0",
   "pydantic-settings>=2.8,<3.0",
   "uvicorn[standard]>=0.34,<1.0",

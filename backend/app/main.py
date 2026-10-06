@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.ai.base import AIRequirementExtractor
+from app.ai.gemini_extractor import GeminiRequirementExtractor
 from app.ai.openai_extractor import OpenAIRequirementExtractor
 from app.api.business_cases import router as business_cases_router
 from app.config import Settings, get_settings
@@ -18,11 +19,20 @@ def create_app(
         if current_settings.ai_api_key
         else None
     )
-    current_extractor = extractor or OpenAIRequirementExtractor(
-        api_key=api_key,
-        model=current_settings.ai_model,
-        timeout_seconds=current_settings.ai_timeout_seconds,
-    )
+    if extractor is not None:
+        current_extractor = extractor
+    elif current_settings.ai_provider == "gemini":
+        current_extractor = GeminiRequirementExtractor(
+            api_key=api_key,
+            model=current_settings.ai_model,
+            timeout_seconds=current_settings.ai_timeout_seconds,
+        )
+    else:
+        current_extractor = OpenAIRequirementExtractor(
+            api_key=api_key,
+            model=current_settings.ai_model,
+            timeout_seconds=current_settings.ai_timeout_seconds,
+        )
 
     application = FastAPI(
         title="SECI-TI API",

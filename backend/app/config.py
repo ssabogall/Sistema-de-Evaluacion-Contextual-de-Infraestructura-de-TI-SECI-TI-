@@ -9,6 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
+    ai_provider: str = "openai"
     ai_api_key: SecretStr | None = None
     ai_model: str | None = None
     ai_timeout_seconds: float = Field(default=30.0, gt=0)
