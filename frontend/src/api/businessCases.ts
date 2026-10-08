@@ -1,7 +1,4 @@
-import type {
-  BusinessCaseAnalysis,
-  ConfirmedBusinessCase,
-} from "../types";
+import type { BusinessCaseAnalysis, ConfirmedBusinessCase } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const PUBLIC_ERROR = "No fue posible analizar el caso en este momento. Intenta nuevamente.";

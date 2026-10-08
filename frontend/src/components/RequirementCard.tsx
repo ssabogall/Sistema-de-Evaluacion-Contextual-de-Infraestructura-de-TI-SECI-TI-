@@ -9,14 +9,9 @@ interface RequirementCardProps {
   onChange: (value: string) => void;
 }
 
-export function RequirementCard({
-  config,
-  requirement,
-  onChange,
-}: RequirementCardProps) {
+export function RequirementCard({ config, requirement, onChange }: RequirementCardProps) {
   const selectedLabel =
-    config.options.find((option) => option.value === requirement.value)?.label ??
-    "No definido";
+    config.options.find((option) => option.value === requirement.value)?.label ?? "No definido";
 
   return (
     <article className={`requirement-card status-${requirement.status}`}>

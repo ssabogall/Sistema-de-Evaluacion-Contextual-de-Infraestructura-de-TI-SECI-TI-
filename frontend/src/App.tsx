@@ -11,15 +11,8 @@ import {
 
 import { analyzeBusinessCase, confirmBusinessCase } from "./api/businessCases";
 import { RequirementCard } from "./components/RequirementCard";
-import {
-  ADDITIONAL_CONTEXT_LABELS,
-  REQUIREMENT_CONFIGS,
-} from "./requirements";
-import type {
-  BusinessCaseAnalysis,
-  ConfirmedBusinessCase,
-  RequirementKey,
-} from "./types";
+import { ADDITIONAL_CONTEXT_LABELS, REQUIREMENT_CONFIGS } from "./requirements";
+import type { BusinessCaseAnalysis, ConfirmedBusinessCase, RequirementKey } from "./types";
 
 const PLACEHOLDER =
   "Ejemplo: Necesitamos una plataforma de comercio electrónico para aproximadamente 3.000 usuarios. Durante campañas de marketing podemos tener aumentos repentinos de tráfico. Si el servicio deja de funcionar perdemos ventas y contamos inicialmente con un presupuesto limitado.";
@@ -104,7 +97,9 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand-mark" aria-hidden="true">S</div>
+        <div className="brand-mark" aria-hidden="true">
+          S
+        </div>
         <div>
           <strong>SECI-TI</strong>
           <span>Evaluación contextual de infraestructura</span>
@@ -121,9 +116,9 @@ function App() {
             </div>
             <h1 id="entry-title">Describe tu caso de negocio</h1>
             <p className="lead">
-              Describe la aplicación o sistema que deseas soportar. Puedes incluir
-              información sobre usuarios, comportamiento del tráfico, importancia de la
-              disponibilidad, presupuesto y tipo de información manejada.
+              Describe la aplicación o sistema que deseas soportar. Puedes incluir información sobre
+              usuarios, comportamiento del tráfico, importancia de la disponibilidad, presupuesto y
+              tipo de información manejada.
             </p>
 
             <form onSubmit={handleAnalyze} className="business-form">
@@ -164,8 +159,8 @@ function App() {
             <div className="trust-note">
               <ShieldCheck size={20} aria-hidden="true" />
               <p>
-                El análisis identifica requisitos. Ninguna arquitectura se selecciona en
-                esta etapa y siempre tendrás que confirmar el resultado.
+                El análisis identifica requisitos. Ninguna arquitectura se selecciona en esta etapa
+                y siempre tendrás que confirmar el resultado.
               </p>
             </div>
           </section>
@@ -181,8 +176,8 @@ function App() {
                 <div className="section-kicker">Revisión humana</div>
                 <h1 id="review-title">Requisitos identificados</h1>
                 <p>
-                  Revisa cada resultado, completa los valores no definidos y resuelve los
-                  conflictos antes de confirmar.
+                  Revisa cada resultado, completa los valores no definidos y resuelve los conflictos
+                  antes de confirmar.
                 </p>
               </div>
               <div className="review-count">
@@ -195,7 +190,9 @@ function App() {
               <div className="warning-panel">
                 <AlertCircle size={20} aria-hidden="true" />
                 <div>
-                  {analysis.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+                  {analysis.warnings.map((warning) => (
+                    <p key={warning}>{warning}</p>
+                  ))}
                 </div>
               </div>
             )}
