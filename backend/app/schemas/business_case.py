@@ -32,6 +32,13 @@ class RequirementKey(StrEnum):
     EXPECTED_LOAD_VOLUME = "expected_load_volume"
 
 
+class ServiceInterruptionTolerance(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    UNKNOWN = "unknown"
+
+
 ValueEnum = TypeVar("ValueEnum", bound=Enum)
 
 
