@@ -8,11 +8,10 @@ desincronizan.
 
 from app.decision_engine.architectures import ArchitectureId
 from app.schemas.business_case import (
+    BusinessContinuityCriticality,
     DemandPattern,
     RequirementKey,
     ServiceInterruptionTolerance,
-    BusinessContinuityCriticality,
-    InformationSensitivity,
     StandardLevel,
 )
 
@@ -21,17 +20,17 @@ from app.schemas.business_case import (
 # -- es transcripcion de una decision ya tomada, no una decision nueva.
 COMPATIBILITY_TABLE = {
     RequirementKey.SERVICE_INTERRUPTION_TOLERANCE: {
-        ServiceInterruptionTolerance.HIGH: {
+        StandardLevel.HIGH: {
             ArchitectureId.A: 3,  
             ArchitectureId.B: 1,  
             ArchitectureId.C: -1,  
         },
-        ServiceInterruptionTolerance.MEDIUM: {
+        StandardLevel.MEDIUM: {
             ArchitectureId.A: 0,
             ArchitectureId.B: 2,
             ArchitectureId.C: 1,  
             },
-        ServiceInterruptionTolerance.LOW: {
+        StandardLevel.LOW: {
             ArchitectureId.A: -2,
             ArchitectureId.B: 0,
             ArchitectureId.C: 3,
@@ -56,31 +55,72 @@ COMPATIBILITY_TABLE = {
         
     },
     RequirementKey.INFORMATION_SENSITIVITY: {
-        InformationSensitivity.HIGH: {
+        StandardLevel.HIGH: {
             ArchitectureId.A: 1,
             ArchitectureId.B: 1,
             ArchitectureId.C: 1
         },
-        InformationSensitivity.MEDIUM: {
+        StandardLevel.MEDIUM: {
             ArchitectureId.A: 0,
             ArchitectureId.B: 1,
             ArchitectureId.C: 1
         },
-        InformationSensitivity.LOW: {
+        StandardLevel.LOW: {
             ArchitectureId.A: -1,
             ArchitectureId.B: 0,
             ArchitectureId.C: 2
         },
     },       
     RequirementKey.AVAILABLE_BUDGET: {
-        
-        # TODO: StandardLevel.LOW / MEDIUM / HIGH
+        StandardLevel.HIGH: {
+            ArchitectureId.A: 3,
+            ArchitectureId.B: 1,
+            ArchitectureId.C: -2
+        },
+        StandardLevel.MEDIUM: {
+            ArchitectureId.A: 1,
+            ArchitectureId.B: 2,
+            ArchitectureId.C: 1
+        },
+        StandardLevel.LOW: {
+            ArchitectureId.A: -1,
+            ArchitectureId.B: 1,
+            ArchitectureId.C: 3
+        }
     },
     RequirementKey.DEMAND_PATTERN: {
-        # TODO: DemandPattern.CONSTANT / PREDICTABLE_PEAKS / UNPREDICTABLE_PEAKS
+        StandardLevel.HIGH:{
+            ArchitectureId.A: 2,
+            ArchitectureId.B: 0,
+            ArchitectureId.C: 0
+        },
+        StandardLevel.MEDIUM:{
+            ArchitectureId.A: -1,
+            ArchitectureId.B: 2,
+            ArchitectureId.C: 1
+        },
+        StandardLevel.LOW:{
+            ArchitectureId.A: -2,
+            ArchitectureId.B: 0,
+            ArchitectureId.C: -1
+        }
     },
     RequirementKey.EXPECTED_LOAD_VOLUME: {
-        # TODO: StandardLevel.LOW / MEDIUM / HIGH
+        StandardLevel.HIGH:{
+            ArchitectureId.A: 2,
+            ArchitectureId.B: 0,
+            ArchitectureId.C: -1
+        },
+        StandardLevel.MEDIUM:{
+            ArchitectureId.A: 0,
+            ArchitectureId.B: 2,
+            ArchitectureId.C: 1
+        },
+        StandardLevel.LOW:{
+            ArchitectureId.A: -2,
+            ArchitectureId.B: 1,
+            ArchitectureId.C: -1
+        }
     },
 }
 

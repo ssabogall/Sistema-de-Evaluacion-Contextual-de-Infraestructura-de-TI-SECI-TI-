@@ -9,25 +9,6 @@ class RequirementStatus(StrEnum):
     UNKNOWN = "unknown"
     CONFLICT = "conflict"
 
-
-class ServiceInterruptionTolerance(StrEnum):
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-    UNKNOWN = "unknown"
-    
-class BusinessContinuityCriticality(StrEnum):
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-    UNKNOWN = "unknown"
-
-class InformationSensitivity(StrEnum):
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-    UNKNOWN = "unknown"
-
 class StandardLevel(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
