@@ -13,9 +13,20 @@ class RequirementStatus(StrEnum):
 class ServiceInterruptionTolerance(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
-    NEAR_ZERO = "near_zero"
+    LOW = "low"
+    UNKNOWN = "unknown"
+    
+class BusinessContinuityCriticality(StrEnum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
     UNKNOWN = "unknown"
 
+class InformationSensitivity(StrEnum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    UNKNOWN = "unknown"
 
 class StandardLevel(StrEnum):
     LOW = "low"

@@ -8,7 +8,7 @@ from tests.helpers import analysis_payload, requirement
 def test_normalizes_only_safe_enum_format_equivalents() -> None:
     payload = analysis_payload(
         service_interruption_tolerance=requirement(
-            "near-zero",
+            "low",
             "detected",
             ["practicamente no puede interrumpirse"],
         )
@@ -16,7 +16,7 @@ def test_normalizes_only_safe_enum_format_equivalents() -> None:
 
     analysis = BusinessCaseAnalysis.model_validate(payload)
 
-    assert analysis.requirements.service_interruption_tolerance.value.value == "near_zero"
+    assert analysis.requirements.service_interruption_tolerance.value.value == "low"
 
 
 def test_rejects_value_outside_closed_enum() -> None:

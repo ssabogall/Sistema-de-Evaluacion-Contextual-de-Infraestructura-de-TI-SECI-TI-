@@ -33,7 +33,7 @@ CURATED_CASES = [
         "Esta plataforma procesa las ventas principales de la compania. Si deja de funcionar nuestra operacion comercial se detiene. Necesitamos que permanezca disponible practicamente todo el tiempo y tenemos presupuesto suficiente para priorizar la continuidad.",
         {
             "service_interruption_tolerance": requirement(
-                "near_zero", "detected", ["disponible practicamente todo el tiempo"]
+                "low", "detected", ["disponible practicamente todo el tiempo"]
             ),
             "business_continuity_criticality": requirement(
                 "high", "detected", ["nuestra operacion comercial se detiene"]

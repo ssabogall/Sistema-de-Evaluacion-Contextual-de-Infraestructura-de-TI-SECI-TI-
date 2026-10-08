@@ -20,7 +20,7 @@ export const REQUIREMENT_CONFIGS: RequirementConfig[] = [
     options: [
       { value: "high", label: "Se pueden tolerar interrupciones largas" },
       { value: "medium", label: "Solo se toleran interrupciones cortas" },
-      { value: "near_zero", label: "Prácticamente no puede interrumpirse" },
+      { value: "low", label: "Prácticamente no puede interrumpirse" },
       { value: "unknown", label: "No definido" },
     ],
   },
