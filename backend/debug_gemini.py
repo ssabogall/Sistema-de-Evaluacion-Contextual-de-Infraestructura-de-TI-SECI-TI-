@@ -11,12 +11,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from google import genai
-from pydantic import ValidationError
-
-from app.ai.prompts.business_case_extractor import BUSINESS_CASE_EXTRACTOR_PROMPT
+from app.ai.base import AIExtractionError
+from app.ai.gemini_extractor import GeminiRequirementExtractor
 from app.config import get_settings
-from app.schemas.business_case import BusinessCaseAnalysis
 
 settings = get_settings()
 api_key = settings.ai_api_key.get_secret_value() if settings.ai_api_key else None
@@ -26,7 +23,14 @@ print(f"Usando modelo: {model!r}")
 print(f"API key leida (primeros 10 chars): {api_key[:10]!r} ... (len={len(api_key) if api_key else 0})")
 print("-" * 60)
 
-client = genai.Client(api_key=api_key)
+# Usamos la clase real, no una llamada hecha a mano -- asi el diagnostico
+# prueba exactamente el mismo camino que recorre la app cuando el frontend
+# pega a /api/business-cases/analyze.
+extractor = GeminiRequirementExtractor(
+    api_key=api_key,
+    model=model,
+    timeout_seconds=settings.ai_timeout_seconds,
+)
 
 business_case = (
     "Somos una tienda en linea pequena de ropa. Nuestro presupuesto es "
@@ -37,29 +41,11 @@ business_case = (
     "ventas importantes."
 )
 
-response = client.models.generate_content(
-    model=model,
-    contents=business_case,
-    config={
-        "system_instruction": BUSINESS_CASE_EXTRACTOR_PROMPT,
-        "response_mime_type": "application/json",
-        "response_schema": BusinessCaseAnalysis,
-    },
-)
-
-print("RESPONSE.TEXT (JSON crudo devuelto por Gemini):")
-print(response.text)
-print("-" * 60)
-
-print("RESPONSE.PARSED (lo que el SDK logro parsear automaticamente):")
-print(response.parsed)
-print("-" * 60)
-
-print("Intentando validar manualmente con BusinessCaseAnalysis.model_validate_json:")
 try:
-    result = BusinessCaseAnalysis.model_validate_json(response.text)
-    print("VALIDACION OK:")
-    print(result)
-except ValidationError as e:
-    print("VALIDACION FALLO -- este es el detalle real que el log de uvicorn no muestra:")
-    print(e)
+    result = extractor.extract_requirements(business_case)
+    print("EXTRACCION OK:")
+    print(result.model_dump_json(indent=2))
+except AIExtractionError as e:
+    print(f"FALLO: {type(e).__name__}: {e}")
+    print("Causa original (lo que el log de uvicorn no muestra):")
+    print(repr(e.__cause__))

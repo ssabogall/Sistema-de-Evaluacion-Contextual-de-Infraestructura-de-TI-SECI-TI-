@@ -25,6 +25,10 @@ dev = [
   "httpx>=0.28,<1.0",
   "pytest>=8.3,<9.0",
   "pytest-cov>=6.0,<7.0",
+  # Sin version fijada, mismo criterio que con google-genai: instalen y
+  # confirmen la version real resuelta antes de depender de un rango que
+  # no verificamos.
+  "ruff",
 ]
 
 [tool.setuptools.packages.find]
@@ -36,3 +40,17 @@ testpaths = ["tests"]
 markers = [
   "integration: calls the configured external AI provider",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# Deliberadamente minimo: errores reales (F = pyflakes, pycodestyle basico),
+# orden de imports (I), y errores comunes (B = bugbear). Nada de reglas de
+# docstrings (D) ni de forzar anotaciones en todo (ANN) -- eso si generaria
+# mas friccion de la que vale la pena para un sprint de 1-2 semanas.
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.format]
+quote-style = "double"

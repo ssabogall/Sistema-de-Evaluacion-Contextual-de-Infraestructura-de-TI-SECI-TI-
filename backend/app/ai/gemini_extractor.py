@@ -41,6 +41,28 @@ class _GeminiAnalysisSchema(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+def _strip_additional_properties(node: object) -> object:
+    """Elimina `additionalProperties` del JSON Schema que exporta Pydantic.
+
+    Pydantic agrega esa clave automaticamente en cualquier modelo con
+    `extra="forbid"` (Requirement, Requirements, AdditionalContext, y
+    nuestro propio _GeminiAnalysisSchema, todos la tienen). Gemini no
+    reconoce esa palabra clave del esquema de salida y rechaza la peticion
+    completa con 400 INVALID_ARGUMENT si aparece en cualquier nivel
+    anidado. Esto NO afecta la validacion real -- seguimos usando los
+    modelos con extra="forbid" tal cual para validar lo que Gemini
+    devuelve, solo limpiamos lo que le *pedimos* que genere.
+    """
+    if isinstance(node, dict):
+        node.pop("additionalProperties", None)
+        for value in node.values():
+            _strip_additional_properties(value)
+    elif isinstance(node, list):
+        for item in node:
+            _strip_additional_properties(item)
+    return node
+
+
 class GeminiRequirementExtractor(AIRequirementExtractor):
     """Same contract as OpenAIRequirementExtractor, backed by the Gemini API.
 
@@ -77,7 +99,14 @@ class GeminiRequirementExtractor(AIRequirementExtractor):
                 config=genai_types.GenerateContentConfig(
                     system_instruction=BUSINESS_CASE_EXTRACTOR_PROMPT,
                     response_mime_type="application/json",
-                    response_schema=_GeminiAnalysisSchema,
+                    # Pasamos un dict (no la clase Pydantic directamente)
+                    # porque necesitamos limpiarlo primero con
+                    # _strip_additional_properties. Como consecuencia,
+                    # response.parsed ya no se autocompleta -- por eso mas
+                    # abajo usamos response.text en su lugar.
+                    response_schema=_strip_additional_properties(
+                        _GeminiAnalysisSchema.model_json_schema()
+                    ),
                     # DECISION PENDIENTE (equipo): el SDK de google-genai
                     # permite fijar un timeout via http_options, pero no
                     # confirmamos en que unidad (ms o s) ni en que version
@@ -89,11 +118,10 @@ class GeminiRequirementExtractor(AIRequirementExtractor):
                     # silencio.
                 ),
             )
-            parsed = response.parsed
-            if parsed is None:
+            if not response.text:
                 raise AIResponseValidationError("The provider returned no parsed output")
 
-            partial = _GeminiAnalysisSchema.model_validate(parsed)
+            partial = _GeminiAnalysisSchema.model_validate_json(response.text)
             payload = partial.model_dump(mode="python")
             payload["business_case"] = business_case
             payload["requires_user_confirmation"] = True
