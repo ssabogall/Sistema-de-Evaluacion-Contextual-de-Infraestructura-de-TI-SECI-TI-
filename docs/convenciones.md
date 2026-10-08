@@ -73,16 +73,8 @@ bloque. `ruff` (regla `I`, isort) ya lo verifica solo — no se revisa a mano.
 
 ## GitHub Workflow
 
-Ahora mismo el repo solo tiene `main` y una rama personal (`santiago`) — no
-existe `dev`. Antes de adoptar el modelo de 3 niveles del documento de
-referencia, decidan: ¿vale la pena la rama `dev` intermedia para un equipo
-de 2 personas en un sprint de 1-2 semanas, o prefieren simplificar a
-`feature/* → PR directo a main con revision del otro`? Lo segundo es menos
-proceso y probablemente suficiente para este tamano de equipo — pero es
-decision de ustedes, no mia.
-
-Lo que sí es directamente aplicable sin importar cuál elijan (es agnóstico
-al framework):
+Sin rama `dev` intermedia — cada quien trabaja en su propia rama y se
+mergea directo a `main`.
 
 ### Nombres de rama
 
