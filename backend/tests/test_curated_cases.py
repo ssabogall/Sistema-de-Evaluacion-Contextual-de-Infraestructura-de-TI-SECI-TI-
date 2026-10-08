@@ -3,13 +3,14 @@ import pytest
 from app.schemas.business_case import BusinessCaseAnalysis
 from tests.helpers import analysis_payload, requirement
 
-
 CURATED_CASES = [
     (
         "Necesitamos una aplicacion interna para aproximadamente 50 empleados. Su uso sera estable durante el horario laboral. Si deja de funcionar durante algunas horas no tendria un impacto grave y tenemos un presupuesto bastante limitado.",
         {
             "service_interruption_tolerance": requirement("high", "detected", ["algunas horas"]),
-            "business_continuity_criticality": requirement("low", "detected", ["no tendria un impacto grave"]),
+            "business_continuity_criticality": requirement(
+                "low", "detected", ["no tendria un impacto grave"]
+            ),
             "available_budget": requirement("low", "detected", ["presupuesto bastante limitado"]),
             "demand_pattern": requirement("constant", "detected", ["uso sera estable"]),
         },
@@ -18,17 +19,25 @@ CURATED_CASES = [
     (
         "Esperamos aproximadamente 5.000 usuarios y durante promociones podemos recibir aumentos repentinos de trafico que son dificiles de predecir. Podemos tolerar algunos minutos de interrupcion y tenemos un presupuesto moderado.",
         {
-            "service_interruption_tolerance": requirement("medium", "detected", ["algunos minutos de interrupcion"]),
+            "service_interruption_tolerance": requirement(
+                "medium", "detected", ["algunos minutos de interrupcion"]
+            ),
             "available_budget": requirement("medium", "detected", ["presupuesto moderado"]),
-            "demand_pattern": requirement("unpredictable_peaks", "detected", ["dificiles de predecir"]),
+            "demand_pattern": requirement(
+                "unpredictable_peaks", "detected", ["dificiles de predecir"]
+            ),
         },
         {"expected_users": 5000},
     ),
     (
         "Esta plataforma procesa las ventas principales de la compania. Si deja de funcionar nuestra operacion comercial se detiene. Necesitamos que permanezca disponible practicamente todo el tiempo y tenemos presupuesto suficiente para priorizar la continuidad.",
         {
-            "service_interruption_tolerance": requirement("near_zero", "detected", ["disponible practicamente todo el tiempo"]),
-            "business_continuity_criticality": requirement("high", "detected", ["nuestra operacion comercial se detiene"]),
+            "service_interruption_tolerance": requirement(
+                "near_zero", "detected", ["disponible practicamente todo el tiempo"]
+            ),
+            "business_continuity_criticality": requirement(
+                "high", "detected", ["nuestra operacion comercial se detiene"]
+            ),
             "available_budget": requirement("high", "detected", ["presupuesto suficiente"]),
         },
         {},
@@ -41,8 +50,12 @@ CURATED_CASES = [
     (
         "Nuestro sistema almacenara informacion financiera y datos personales de clientes. Esperamos un trafico relativamente estable.",
         {
-            "information_sensitivity": requirement("high", "detected", ["informacion financiera y datos personales"]),
-            "demand_pattern": requirement("constant", "detected", ["trafico relativamente estable"]),
+            "information_sensitivity": requirement(
+                "high", "detected", ["informacion financiera y datos personales"]
+            ),
+            "demand_pattern": requirement(
+                "constant", "detected", ["trafico relativamente estable"]
+            ),
         },
         {},
     ),

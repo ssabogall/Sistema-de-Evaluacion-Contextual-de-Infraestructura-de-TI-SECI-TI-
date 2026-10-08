@@ -15,9 +15,7 @@ def create_app(
 ) -> FastAPI:
     current_settings = settings or get_settings()
     api_key = (
-        current_settings.ai_api_key.get_secret_value()
-        if current_settings.ai_api_key
-        else None
+        current_settings.ai_api_key.get_secret_value() if current_settings.ai_api_key else None
     )
     if extractor is not None:
         current_extractor = extractor

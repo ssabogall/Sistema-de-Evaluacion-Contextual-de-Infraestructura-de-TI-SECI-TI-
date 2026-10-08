@@ -11,7 +11,6 @@ from app.schemas.business_case import (
 )
 from app.services.business_case_service import BusinessCaseService
 
-
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/business-cases", tags=["business-cases"])
 PUBLIC_ANALYSIS_ERROR = "No fue posible analizar el caso en este momento. Intenta nuevamente."

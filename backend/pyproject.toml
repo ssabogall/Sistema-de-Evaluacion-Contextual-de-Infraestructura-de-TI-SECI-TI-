@@ -51,6 +51,19 @@ target-version = "py311"
 # docstrings (D) ni de forzar anotaciones en todo (ANN) -- eso si generaria
 # mas friccion de la que vale la pena para un sprint de 1-2 semanas.
 select = ["E", "F", "I", "UP", "B"]
+# B008 se desactiva a proposito: FastAPI usa `Depends(...)` como valor por
+# defecto de un parametro de forma intencional (es su patron oficial de
+# inyeccion de dependencias, documentado por el propio framework). La
+# regla generica de Python que detecta "no llames funciones en defaults"
+# no aplica aqui -- no es un bug, es como FastAPI espera que se escriba.
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Los casos curados son texto descriptivo en espanol (los casos de negocio
+# de prueba), no codigo -- forzarlos a 100 caracteres los parte de forma
+# arbitraria sin ganar legibilidad real. Se desactiva solo E501, solo en
+# este archivo.
+"tests/test_curated_cases.py" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

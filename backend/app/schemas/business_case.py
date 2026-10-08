@@ -1,37 +1,37 @@
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-class RequirementStatus(str, Enum):
+class RequirementStatus(StrEnum):
     DETECTED = "detected"
     UNKNOWN = "unknown"
     CONFLICT = "conflict"
 
 
-class ServiceInterruptionTolerance(str, Enum):
+class ServiceInterruptionTolerance(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
     NEAR_ZERO = "near_zero"
     UNKNOWN = "unknown"
 
 
-class StandardLevel(str, Enum):
+class StandardLevel(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     UNKNOWN = "unknown"
 
 
-class DemandPattern(str, Enum):
+class DemandPattern(StrEnum):
     CONSTANT = "constant"
     PREDICTABLE_PEAKS = "predictable_peaks"
     UNPREDICTABLE_PEAKS = "unpredictable_peaks"
     UNKNOWN = "unknown"
 
 
-class RequirementKey(str, Enum):
+class RequirementKey(StrEnum):
     SERVICE_INTERRUPTION_TOLERANCE = "service_interruption_tolerance"
     BUSINESS_CONTINUITY_CRITICALITY = "business_continuity_criticality"
     INFORMATION_SENSITIVITY = "information_sensitivity"
@@ -73,7 +73,9 @@ class Requirement(BaseModel, Generic[ValueEnum]):
             raise ValueError("detected cannot use value=unknown")
         if self.status == RequirementStatus.CONFLICT:
             if value != "unknown" or len(self.evidence) < 2:
-                raise ValueError("conflict requires value=unknown and at least two evidence fragments")
+                raise ValueError(
+                    "conflict requires value=unknown and at least two evidence fragments"
+                )
         return self
 
 
@@ -88,10 +90,7 @@ class Requirements(BaseModel):
     expected_load_volume: Requirement[StandardLevel]
 
     def canonical_items(self) -> list[tuple[RequirementKey, Requirement[Enum]]]:
-        return [
-            (key, getattr(self, key.value))
-            for key in RequirementKey
-        ]
+        return [(key, getattr(self, key.value)) for key in RequirementKey]
 
 
 class AdditionalContext(BaseModel):

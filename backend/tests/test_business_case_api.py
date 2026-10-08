@@ -5,9 +5,7 @@ from tests.helpers import StaticExtractor, analysis_payload, requirement
 
 def test_analyze_returns_typed_analysis_and_original_text(client_factory) -> None:
     detected = BusinessCaseAnalysis.model_validate(
-        analysis_payload(
-            demand_pattern=requirement("constant", "detected", ["trafico estable"])
-        )
+        analysis_payload(demand_pattern=requirement("constant", "detected", ["trafico estable"]))
     )
     client = client_factory(StaticExtractor(detected))
     description = "Esperamos un trafico estable para la aplicacion interna."
@@ -41,9 +39,7 @@ def test_confirm_returns_complete_confirmed_object(client_factory) -> None:
 
 
 def test_provider_error_uses_friendly_public_message(client_factory) -> None:
-    client = client_factory(
-        StaticExtractor(error=AIProviderError("internal provider detail"))
-    )
+    client = client_factory(StaticExtractor(error=AIProviderError("internal provider detail")))
 
     response = client.post(
         "/api/business-cases/analyze",
@@ -58,9 +54,7 @@ def test_provider_error_uses_friendly_public_message(client_factory) -> None:
 
 
 def test_schema_error_uses_same_friendly_message(client_factory) -> None:
-    client = client_factory(
-        StaticExtractor(error=AIResponseValidationError("invalid enum"))
-    )
+    client = client_factory(StaticExtractor(error=AIResponseValidationError("invalid enum")))
 
     response = client.post(
         "/api/business-cases/analyze",

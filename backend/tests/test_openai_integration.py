@@ -5,7 +5,6 @@ import pytest
 from app.ai.openai_extractor import OpenAIRequirementExtractor
 from tests.test_curated_cases import CURATED_CASES
 
-
 HAS_AI_CONFIG = bool(os.getenv("AI_API_KEY") and os.getenv("AI_MODEL"))
 
 

@@ -15,8 +15,8 @@ from app.ai.prompts.business_case_extractor import BUSINESS_CASE_EXTRACTOR_PROMP
 from app.schemas.business_case import (
     AdditionalContext,
     BusinessCaseAnalysis,
-    Requirements,
     RequirementKey,
+    Requirements,
 )
 
 
