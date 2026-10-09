@@ -10,7 +10,12 @@ from app.decision_engine.architectures import ArchitectureId
 from app.schemas.business_case import (
     RequirementKey,
     StandardLevel,
+    DemandPattern,
 )
+
+class CompatibilityLookupError(Exception):
+    """No existe entrada en la tabla para la combinacion pedida."""
+    pass
 
 COMPATIBILITY_TABLE = {
     RequirementKey.SERVICE_INTERRUPTION_TOLERANCE: {
@@ -83,20 +88,20 @@ COMPATIBILITY_TABLE = {
         }
     },
     RequirementKey.DEMAND_PATTERN: {
-        StandardLevel.LOW:{
+        DemandPattern.CONSTANT:{
             ArchitectureId.A: 2,
             ArchitectureId.B: 0,
             ArchitectureId.C: 0
         },
-        StandardLevel.MEDIUM:{
+        DemandPattern.PREDICTABLE_PEAKS:{
             ArchitectureId.A: -1,
             ArchitectureId.B: 2,
             ArchitectureId.C: 1
         },
-        StandardLevel.HIGH:{
+        DemandPattern.UNPREDICTABLE_PEAKS:{
             ArchitectureId.A: -2,
-            ArchitectureId.B: 0,
-            ArchitectureId.C: -1
+            ArchitectureId.B: 1,
+            ArchitectureId.C: 2
         }
     },
     RequirementKey.EXPECTED_LOAD_VOLUME: {
@@ -113,28 +118,31 @@ COMPATIBILITY_TABLE = {
         StandardLevel.HIGH:{
             ArchitectureId.A: -2,
             ArchitectureId.B: 1,
-            ArchitectureId.C: -1
+            ArchitectureId.C: 2
         }
     },
 }
 
-ARCHITECTURES_IN_ORDER = [ArchitectureId.A, ArchitectureId.B, ArchitectureId.C]
+def get_score(
+    key: RequirementKey,
+    level: str,
+    architecture: ArchitectureId,
+) -> float:
+    """Devuelve el puntaje de compatibilidad (-2..+3) de una arquitectura
+    para el nivel dado de una variable.
 
-def _row(a: float, b: float, c: float) -> dict[ArchitectureId, float]:
-    return dict(zip(ARCHITECTURES_IN_ORDER, (a, b, c)))
+    `level` se recibe como str: los enums del esquema son StrEnum, asi que
+    StandardLevel, DemandPattern y ServiceInterruptionTolerance se comparan
+    por su valor de texto.
 
-
-
-def get_score(key: RequirementKey, level, architecture: ArchitectureId) -> float:
-    """TODO (ustedes): implementar.
-
-    Debe buscar COMPATIBILITY_TABLE[key][level][architecture] y
-    devolverlo. Pregunta para que resuelvan al escribirla: ¿qué pasa si
-    la combinacion no existe en la tabla (ej. un error de escritura en
-    el nivel)? Ya tienen el patron de excepciones tipadas en
-    app/ai/base.py -- decidan si aqui aplica igual.
-
-    No se encarga del caso 'unknown' -- eso ya lo resolvieron que pasa
-    ANTES de llamar aqui (constante 0.5), en scoring.py.
+    Lanza CompatibilityLookupError si la combinacion no existe (nivel
+    equivocado para esa variable, o 'unknown'). El caso 'unknown' se
+    resuelve ANTES, en scoring.py (constante 0.5).
     """
-    raise NotImplementedError
+    try:
+        return float(COMPATIBILITY_TABLE[key][level][architecture])
+    except KeyError as exc:
+        raise CompatibilityLookupError(
+            f"Sin entrada en la tabla: key={key!r}, level={level!r}, "
+            f"architecture={architecture!r}"
+        ) from exc
