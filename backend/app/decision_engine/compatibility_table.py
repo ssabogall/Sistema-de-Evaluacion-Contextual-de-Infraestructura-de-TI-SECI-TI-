@@ -8,16 +8,10 @@ desincronizan.
 
 from app.decision_engine.architectures import ArchitectureId
 from app.schemas.business_case import (
-    BusinessContinuityCriticality,
-    DemandPattern,
     RequirementKey,
-    ServiceInterruptionTolerance,
     StandardLevel,
 )
 
-# TODO (ustedes): completar cada ArchitectureId: ... con el numero exacto
-# de la tabla del documento (seccion 3). No inventen valores nuevos aqui
-# -- es transcripcion de una decision ya tomada, no una decision nueva.
 COMPATIBILITY_TABLE = {
     RequirementKey.SERVICE_INTERRUPTION_TOLERANCE: {
         StandardLevel.HIGH: {
@@ -37,17 +31,17 @@ COMPATIBILITY_TABLE = {
             },  
     },
     RequirementKey.BUSINESS_CONTINUITY_CRITICALITY: {
-        BusinessContinuityCriticality.HIGH: {
+        StandardLevel.LOW: {
             ArchitectureId.A: 2,
             ArchitectureId.B: 1,
             ArchitectureId.C: -1
         },
-        BusinessContinuityCriticality.MEDIUM: {
+        StandardLevel.MEDIUM: {
             ArchitectureId.A: 0,
             ArchitectureId.B: 2,
             ArchitectureId.C: 1
         },
-        BusinessContinuityCriticality.LOW: {
+        StandardLevel.HIGH: {
             ArchitectureId.A: -2,
             ArchitectureId.B: 1,
             ArchitectureId.C: 3
@@ -55,7 +49,7 @@ COMPATIBILITY_TABLE = {
         
     },
     RequirementKey.INFORMATION_SENSITIVITY: {
-        StandardLevel.HIGH: {
+        StandardLevel.LOW: {
             ArchitectureId.A: 1,
             ArchitectureId.B: 1,
             ArchitectureId.C: 1
@@ -65,14 +59,14 @@ COMPATIBILITY_TABLE = {
             ArchitectureId.B: 1,
             ArchitectureId.C: 1
         },
-        StandardLevel.LOW: {
+        StandardLevel.HIGH: {
             ArchitectureId.A: -1,
             ArchitectureId.B: 0,
             ArchitectureId.C: 2
         },
     },       
     RequirementKey.AVAILABLE_BUDGET: {
-        StandardLevel.HIGH: {
+        StandardLevel.LOW: {
             ArchitectureId.A: 3,
             ArchitectureId.B: 1,
             ArchitectureId.C: -2
@@ -82,14 +76,14 @@ COMPATIBILITY_TABLE = {
             ArchitectureId.B: 2,
             ArchitectureId.C: 1
         },
-        StandardLevel.LOW: {
+        StandardLevel.HIGH: {
             ArchitectureId.A: -1,
             ArchitectureId.B: 1,
             ArchitectureId.C: 3
         }
     },
     RequirementKey.DEMAND_PATTERN: {
-        StandardLevel.HIGH:{
+        StandardLevel.LOW:{
             ArchitectureId.A: 2,
             ArchitectureId.B: 0,
             ArchitectureId.C: 0
@@ -99,14 +93,14 @@ COMPATIBILITY_TABLE = {
             ArchitectureId.B: 2,
             ArchitectureId.C: 1
         },
-        StandardLevel.LOW:{
+        StandardLevel.HIGH:{
             ArchitectureId.A: -2,
             ArchitectureId.B: 0,
             ArchitectureId.C: -1
         }
     },
     RequirementKey.EXPECTED_LOAD_VOLUME: {
-        StandardLevel.HIGH:{
+        StandardLevel.LOW:{
             ArchitectureId.A: 2,
             ArchitectureId.B: 0,
             ArchitectureId.C: -1
@@ -116,13 +110,19 @@ COMPATIBILITY_TABLE = {
             ArchitectureId.B: 2,
             ArchitectureId.C: 1
         },
-        StandardLevel.LOW:{
+        StandardLevel.HIGH:{
             ArchitectureId.A: -2,
             ArchitectureId.B: 1,
             ArchitectureId.C: -1
         }
     },
 }
+
+ARCHITECTURES_IN_ORDER = [ArchitectureId.A, ArchitectureId.B, ArchitectureId.C]
+
+def _row(a: float, b: float, c: float) -> dict[ArchitectureId, float]:
+    return dict(zip(ARCHITECTURES_IN_ORDER, (a, b, c)))
+
 
 
 def get_score(key: RequirementKey, level, architecture: ArchitectureId) -> float:
