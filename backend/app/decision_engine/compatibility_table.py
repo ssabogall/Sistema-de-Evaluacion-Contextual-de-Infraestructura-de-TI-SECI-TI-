@@ -8,10 +8,11 @@ desincronizan.
 
 from app.decision_engine.architectures import ArchitectureId
 from app.schemas.business_case import (
+    DemandPattern,
     RequirementKey,
     StandardLevel,
-    DemandPattern,
 )
+
 
 class CompatibilityLookupError(Exception):
     """No existe entrada en la tabla para la combinacion pedida."""

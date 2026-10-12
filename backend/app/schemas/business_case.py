@@ -32,6 +32,24 @@ class RequirementKey(StrEnum):
     EXPECTED_LOAD_VOLUME = "expected_load_volume"
 
 
+class BusinessPriorityStatement(StrEnum):
+    """Las 4 afirmaciones de negocio que el usuario ordena de mas a menos importante.
+
+    El texto completo de cada una esta en docs/motor_de_reglas_puntaje_ponderado.md,
+    seccion 4. Los nombres describen la afirmacion, no el pilar tecnico: el usuario
+    nunca ve terminos como "Reliability".
+    """
+
+    NEVER_STOP_WORKING = "never_stop_working"
+    LOWEST_COST = "lowest_cost"
+    FAST_UNDER_LOAD = "fast_under_load"
+    PROTECT_INFORMATION = "protect_information"
+
+
+# Posicion elegida por el usuario para cada afirmacion: 1 = la mas importante.
+BusinessPriorityRanking = dict[BusinessPriorityStatement, int]
+
+
 class ServiceInterruptionTolerance(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
