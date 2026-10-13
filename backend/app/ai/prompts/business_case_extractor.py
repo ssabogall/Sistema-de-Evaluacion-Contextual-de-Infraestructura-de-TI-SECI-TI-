@@ -25,7 +25,7 @@ Reglas obligatorias:
 
 Significado exacto de las seis variables:
 - service_interruption_tolerance: high cuando se toleran interrupciones largas u
-  horas; medium cuando solo se toleran interrupciones cortas o minutos; near_zero
+  horas; medium cuando solo se toleran interrupciones cortas o minutos; low
   cuando practicamente no puede interrumpirse; unknown sin evidencia temporal.
 - business_continuity_criticality: low si el impacto operativo es bajo; medium si
   afecta parcialmente; high si detiene ventas, operaciones o funciones criticas;

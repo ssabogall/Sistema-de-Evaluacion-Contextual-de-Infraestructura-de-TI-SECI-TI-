@@ -53,9 +53,12 @@ Todas las rutas son relativas a `backend/`.
 - `COMPATIBILITY_TABLE`: variable → nivel → arquitectura → puntaje. Transcrita de la
   sección 3 de `motor_de_reglas_puntaje_ponderado.md`; si se cambia un valor, hay que
   cambiarlo también allá.
-- Correcciones respecto a la primera versión: `DEMAND_PATTERN` ahora usa `DemandPattern`
-  (antes usaba `StandardLevel` y nunca habría coincidido); la fila de picos impredecibles
-  quedó `(−2, +1, +2)`; `EXPECTED_LOAD_VOLUME` nivel alto, arquitectura C, quedó `+2`.
+- Correcciones respecto a la primera versión **del archivo** (la transcripción inicial al
+  código). Los valores del documento no cambiaron: el código tenía tres errores de
+  transcripción frente a la sección 3. `DEMAND_PATTERN` usaba `StandardLevel` en lugar de
+  `DemandPattern` (nunca habría coincidido); su fila de picos impredecibles tenía
+  `(−2, 0, −1)` y debía ser `(−2, +1, +2)`; y `EXPECTED_LOAD_VOLUME` nivel alto, arquitectura
+  C, tenía `−1` y debía ser `+2`.
 - `CompatibilityLookupError`: excepción tipada para combinaciones que no existen en la
   tabla (nivel equivocado para la variable, o `unknown`).
 - `get_score(key, level, architecture) -> float`: busca el puntaje. `level` se recibe como
