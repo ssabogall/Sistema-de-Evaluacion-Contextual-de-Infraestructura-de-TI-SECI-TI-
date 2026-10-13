@@ -15,6 +15,7 @@ from app.ai.prompts.business_case_extractor import BUSINESS_CASE_EXTRACTOR_PROMP
 from app.schemas.business_case import (
     AdditionalContext,
     BusinessCaseAnalysis,
+    PriorityRanking,
     RequirementKey,
     Requirements,
 )
@@ -38,6 +39,8 @@ class _GeminiAnalysisSchema(BaseModel):
     requirements: Requirements
     additional_context: AdditionalContext = Field(default_factory=AdditionalContext)
     missing_requirements: list[RequirementKey] = Field(default_factory=list)
+    priority_ranking: PriorityRanking = Field(default_factory=PriorityRanking)
+    priority_ranking_evidence: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 

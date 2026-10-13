@@ -18,4 +18,5 @@ class BusinessCaseService:
             business_case=request.business_case,
             requirements=request.requirements,
             additional_context=request.additional_context,
+            priority_ranking=request.priority_ranking,
         )

@@ -46,8 +46,55 @@ class BusinessPriorityStatement(StrEnum):
     PROTECT_INFORMATION = "protect_information"
 
 
-# Posicion elegida por el usuario para cada afirmacion: 1 = la mas importante.
-BusinessPriorityRanking = dict[BusinessPriorityStatement, int]
+class PriorityRanking(BaseModel):
+    """Orden de importancia que el usuario da a las 4 afirmaciones de negocio.
+
+    Cada campo es la posicion de una afirmacion: 1 = la mas importante, 4 = la
+    menos importante, None = sin posicion. Los nombres de los campos son los
+    valores de BusinessPriorityStatement a proposito: el esquema que ve el modelo
+    es un objeto fijo (los modos estrictos de los proveedores rechazan los
+    diccionarios abiertos) y el motor recibe un diccionario con to_engine_ranking().
+
+    El modelo de lenguaje solo transcribe un orden que el texto expresa de forma
+    explicita; nunca lo infiere. Un ranking vacio o incompleto es valido y el motor
+    lo trata como "sin ranking" (pesos iguales por pilar).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Sin Field(ge=1, le=4) a proposito: minimum/maximum en el JSON Schema no lo
+    # aceptan todos los proveedores en modo estricto. El rango se valida abajo.
+    never_stop_working: int | None = None
+    lowest_cost: int | None = None
+    fast_under_load: int | None = None
+    protect_information: int | None = None
+
+    @model_validator(mode="after")
+    def validate_positions(self) -> "PriorityRanking":
+        assigned = [position for position in self.positions().values() if position is not None]
+        last_position = len(BusinessPriorityStatement)
+        if any(position < 1 or position > last_position for position in assigned):
+            raise ValueError(f"ranking positions must be between 1 and {last_position}")
+        if len(set(assigned)) != len(assigned):
+            raise ValueError("ranking positions must not repeat")
+        return self
+
+    def positions(self) -> dict[BusinessPriorityStatement, int | None]:
+        return {
+            statement: getattr(self, statement.value) for statement in BusinessPriorityStatement
+        }
+
+    def is_empty(self) -> bool:
+        return all(position is None for position in self.positions().values())
+
+    def to_engine_ranking(self) -> dict[BusinessPriorityStatement, int] | None:
+        """Diccionario para rank_to_weights, o None si el ranking no esta completo."""
+        assigned = {
+            statement: position
+            for statement, position in self.positions().items()
+            if position is not None
+        }
+        return assigned if len(assigned) == len(BusinessPriorityStatement) else None
 
 
 class ServiceInterruptionTolerance(StrEnum):
@@ -149,8 +196,16 @@ class BusinessCaseAnalysis(BaseModel):
     requirements: Requirements
     additional_context: AdditionalContext = Field(default_factory=AdditionalContext)
     missing_requirements: list[RequirementKey] = Field(default_factory=list)
+    priority_ranking: PriorityRanking = Field(default_factory=PriorityRanking)
+    priority_ranking_evidence: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     requires_user_confirmation: Literal[True] = True
+
+    @field_validator("priority_ranking_evidence")
+    @classmethod
+    def clean_priority_ranking_evidence(cls, evidence: list[str]) -> list[str]:
+        cleaned = [fragment.strip() for fragment in evidence if fragment.strip()]
+        return list(dict.fromkeys(cleaned))
 
     @model_validator(mode="after")
     def synchronize_missing_requirements(self) -> "BusinessCaseAnalysis":
@@ -161,6 +216,12 @@ class BusinessCaseAnalysis(BaseModel):
         ]
         return self
 
+    @model_validator(mode="after")
+    def drop_evidence_without_ranking(self) -> "BusinessCaseAnalysis":
+        if self.priority_ranking.is_empty():
+            self.priority_ranking_evidence = []
+        return self
+
 
 class BusinessCaseConfirmationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -168,6 +229,7 @@ class BusinessCaseConfirmationRequest(BaseModel):
     business_case: str = Field(min_length=1, max_length=20_000)
     requirements: Requirements
     additional_context: AdditionalContext = Field(default_factory=AdditionalContext)
+    priority_ranking: PriorityRanking = Field(default_factory=PriorityRanking)
 
 
 class ConfirmedBusinessCase(BaseModel):
@@ -177,3 +239,4 @@ class ConfirmedBusinessCase(BaseModel):
     business_case: str
     requirements: Requirements
     additional_context: AdditionalContext
+    priority_ranking: PriorityRanking
