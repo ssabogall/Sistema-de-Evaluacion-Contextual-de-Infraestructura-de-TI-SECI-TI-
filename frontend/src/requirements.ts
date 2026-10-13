@@ -1,4 +1,4 @@
-import type { RequirementKey } from "./types";
+import type { PriorityStatement, RequirementKey } from "./types";
 
 export interface RequirementOption {
   value: string;
@@ -80,6 +80,45 @@ export const REQUIREMENT_CONFIGS: RequirementConfig[] = [
     ],
   },
 ];
+
+export interface PriorityConfig {
+  key: PriorityStatement;
+  statement: string;
+}
+
+/** Las 4 afirmaciones de negocio (docs/motor_de_reglas_puntaje_ponderado.md, sección 4). */
+export const PRIORITY_CONFIGS: PriorityConfig[] = [
+  {
+    key: "never_stop_working",
+    statement: "Que la aplicación nunca deje de funcionar, incluso si eso cuesta más.",
+  },
+  {
+    key: "lowest_cost",
+    statement: "Mantener el costo de infraestructura lo más bajo posible.",
+  },
+  {
+    key: "fast_under_load",
+    statement: "Que la aplicación responda rápido incluso en momentos de mucho tráfico.",
+  },
+  {
+    key: "protect_information",
+    statement: "Proteger al máximo la información que manejo.",
+  },
+];
+
+export const PRIORITY_POSITION_LABELS = [
+  "1.º · la más importante",
+  "2.º",
+  "3.º",
+  "4.º · la menos importante",
+] as const;
+
+export const PRIORITY_STATE_LABELS = {
+  empty: "Sin definir",
+  partial: "Incompleto",
+  edited: "Editado por ti",
+  detected: "Detectado en tu texto",
+} as const;
 
 export const STATUS_LABELS = {
   detected: "Detectado",

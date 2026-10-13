@@ -28,5 +28,6 @@ export function confirmBusinessCase(
     business_case: analysis.business_case,
     requirements: analysis.requirements,
     additional_context: analysis.additional_context,
+    priority_ranking: analysis.priority_ranking,
   });
 }

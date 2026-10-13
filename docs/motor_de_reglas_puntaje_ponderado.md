@@ -64,9 +64,9 @@ Gana la arquitectura con mayor puntaje total. La diferencia entre el 1° y 2° l
 3. *"Que la aplicación responda rápido incluso en momentos de mucho tráfico."* → Performance Efficiency
 4. *"Proteger al máximo la información que manejo."* → Security
 
-Este ranking puede capturarse de forma natural dentro de la conversación con el módulo LLM de extracción NLU (ver documento de arquitectura de esa capa), sin necesidad de una pantalla técnica separada.
+**Cómo se captura (decidido):** el módulo LLM solo **transcribe** un orden cuando el texto del usuario lo expresa de forma explícita (por ejemplo, "lo más importante es que no se caiga, luego el costo"); nunca lo infiere del tipo de negocio ni de las otras variables. El resultado aparece en la pantalla de revisión como un bloque editable ("Prioridades del negocio"): el usuario puede reordenarlo y debe confirmarlo, igual que los seis requisitos. Si no hay orden explícito o queda incompleto, no se pide nada más y el motor usa pesos iguales (25 % por pilar).
 
-### 4.1 Fórmula de conversión ranking → pesos (PENDIENTE DE DECIDIR)
+### 4.1 Fórmula de conversión ranking → pesos (DECIDIDO: Opción B)
 
 Dos opciones sobre la mesa, ambas técnicas estándar de "rank-order weighting":
 
@@ -90,7 +90,7 @@ Dos opciones sobre la mesa, ambas técnicas estándar de "rank-order weighting":
 
 **Consideración clave:** con la Opción A, un usuario que ordena "Presupuesto" en último lugar reduce su influencia a solo 10% — lo cual puede ser un problema si aun así tiene un presupuesto real y limitado que no debería ignorarse casi por completo. La Opción B preserva un peso mínimo relevante para cualquier pilar, incluso el menos prioritario.
 
-**Decisión pendiente:** elegir A o B (o una tercera fórmula) antes de implementar — queda como punto a resolver con el equipo/profesor.
+**Decisión:** se eligió la **Opción B (suavizada)**. El peso de cada pilar se reparte en partes iguales entre sus variables. Si el ranking falta, está incompleto o es inválido, cada pilar pesa 25 %. Implementado en `backend/app/decision_engine/weights.py`.
 
 ---
 
@@ -114,13 +114,17 @@ Arq. C = 0.20(1) + 0.20(3) + 0.10(1) + 0.20(1) + 0.15(1) + 0.15(1)
 
 **Resultado: Arquitectura B gana (1.70 > 1.40 > -0.35).**
 
+> **Nota:** este ejemplo conserva los pesos de la Opción A porque es el caso que reproducen los tests (`tests/test_scoring.py`). La aplicación usa la **Opción B**. Con el mismo caso y el mismo ranking, la Opción B da pilares de 32.5 / 27.5 / 22.5 / 17.5 % y estos totales: A −0.2375, B 1.6625, C 1.3250. El margen entre B y C es 0.3375 y el umbral (20 % de 1.6625) es 0.3325, así que **con la Opción B este caso ya no activa el trade-off**; con la Opción A (margen 0.30 contra umbral 0.34) sí lo activa.
+
 ---
 
 ## 6. Mecanismo de detección de trade-off
 
-Cuando el 1° y 2° lugar quedan cercanos (diferencia menor a un umbral a definir, ej. 20% del puntaje del ganador), el sistema genera un mensaje explicando qué variable favoreció a la opción no elegida. En el ejemplo anterior:
+Hay trade-off cuando el margen entre el 1° y el 2° lugar es **menor al 20 % del puntaje total del ganador** (comparación estricta; un empate exacto también cuenta como trade-off y gana la primera del orden A → B → C). Implementado en `backend/app/decision_engine/selection.py`. Cuando se activa, el sistema genera un mensaje explicando qué variable favoreció a la opción no elegida. En el ejemplo anterior, con pesos de la Opción A:
 
-> *"Se seleccionó Arquitectura B. Arquitectura C quedó en segundo lugar, mejor posicionada en tolerancia a interrupción y criticidad de continuidad, pero con menor eficiencia de costo para el presupuesto reportado."*
+> *"Se seleccionó Arquitectura B. Arquitectura C quedó en segundo lugar, mejor posicionada en criticidad de continuidad."*
+
+(Según la tabla de la sección 3, con tolerancia media B puntúa +2 y C +1, así que C solo supera a B en criticidad alta: +3 contra +1. El texto real lo arma una plantilla fija en `explanation.py`.)
 
 Este mensaje sale de comparar directamente los puntajes por variable entre el 1° y 2° lugar — no requiere una regla adicional separada.
 
@@ -140,11 +144,12 @@ No deben mezclarse: la tabla de este documento no se valida con CloudWatch, se v
 
 ## 8. Próximos pasos
 
-1. Decidir fórmula de conversión ranking → pesos (Opción A, B, u otra).
-2. Definir el umbral de diferencia de puntaje que activa el mensaje de trade-off.
-3. Validar la tabla de compatibilidad (sección 3) con Miguel y, si es posible, con el profesor — son juicios de ingeniería, no verdades absolutas.
-4. Diseñar cómo el módulo LLM/NLU captura el ranking de las 4 afirmaciones de negocio dentro de la conversación con el usuario.
-5. Implementar la función de puntaje en Python (tabla de compatibilidad + vector de pesos + fórmula SAW) como el núcleo del motor de reglas.
+1. ~~Decidir fórmula de conversión ranking → pesos~~ — hecho: Opción B (sección 4.1).
+2. ~~Definir el umbral del trade-off~~ — hecho: 20 % del total del ganador (sección 6). Pendiente de confirmar con el equipo.
+3. Validar la tabla de compatibilidad (sección 3) con Miguel y, si es posible, con el profesor — son juicios de ingeniería, no verdades absolutas. **Pendiente.**
+4. ~~Diseñar cómo se captura el ranking~~ — hecho: transcripción explícita + bloque editable (sección 4).
+5. ~~Implementar la función de puntaje en Python~~ — hecho (`backend/app/decision_engine/`); ver `docs/pb-02_motor_de_decision.md`.
+6. Plantillas CloudFormation de las tres arquitecturas, despliegue y validación con k6 y CloudWatch. **Pendiente.**
 
 ---
 

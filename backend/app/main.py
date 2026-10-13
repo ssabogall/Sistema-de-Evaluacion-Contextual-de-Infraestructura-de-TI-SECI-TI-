@@ -5,13 +5,18 @@ from app.ai.base import AIRequirementExtractor
 from app.ai.gemini_extractor import GeminiRequirementExtractor
 from app.ai.openai_extractor import OpenAIRequirementExtractor
 from app.api.business_cases import router as business_cases_router
+from app.api.cases import router as cases_router
 from app.config import Settings, get_settings
+from app.persistence.repository import CaseRepository
+from app.persistence.sqlite_repository import SqliteCaseRepository
 from app.services.business_case_service import BusinessCaseService
+from app.services.case_service import CaseService
 
 
 def create_app(
     extractor: AIRequirementExtractor | None = None,
     settings: Settings | None = None,
+    repository: CaseRepository | None = None,
 ) -> FastAPI:
     current_settings = settings or get_settings()
     api_key = (
@@ -38,6 +43,9 @@ def create_app(
         description="PB-01: extraction and human confirmation of business requirements.",
     )
     application.state.business_case_service = BusinessCaseService(current_extractor)
+    application.state.case_service = CaseService(
+        repository or SqliteCaseRepository(current_settings.database_path)
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=current_settings.allowed_origins,
@@ -46,6 +54,7 @@ def create_app(
         allow_headers=["Content-Type"],
     )
     application.include_router(business_cases_router)
+    application.include_router(cases_router)
 
     @application.get("/api/health", tags=["health"])
     def health() -> dict[str, str]:

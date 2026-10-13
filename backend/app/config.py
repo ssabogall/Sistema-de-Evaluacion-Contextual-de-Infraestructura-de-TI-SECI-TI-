@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     ai_model: str | None = None
     ai_timeout_seconds: float = Field(default=30.0, gt=0)
     frontend_origins: str = "http://localhost:5173"
+    # Archivo SQLite donde se guardan los casos. Se crea solo la primera vez que se usa.
+    database_path: Path = PROJECT_ROOT / "data" / "seci_ti.sqlite3"
 
     model_config = SettingsConfigDict(
         env_file=(PROJECT_ROOT / ".env", PROJECT_ROOT / "backend" / ".env"),

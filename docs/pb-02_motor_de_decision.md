@@ -1,7 +1,8 @@
 # PB-02: Motor de decisión (SAW) — cambios y archivos
 
-Registro de lo que se creó o modificó para el núcleo del motor de decisión, con el
-propósito de cada archivo. Estado al 12 de octubre de 2026.
+Registro de lo que se creó o modificó para el motor de decisión, su ranking de prioridades,
+su endpoint, el guardado de casos y las pantallas, con el propósito de cada archivo. Estado
+al 13 de octubre de 2026.
 
 ## Alcance
 
@@ -11,17 +12,30 @@ los puntajes de las tres, si hubo trade-off y un mensaje explicativo. Es
 **determinístico**: no usa IA en ninguna etapa. La IA solo interviene antes, en PB-01,
 para transcribir lenguaje natural a variables.
 
-Fuera de este alcance: captura del ranking en el contrato/prompt/frontend (paso 2),
-endpoint y UI (paso 7), plantillas CloudFormation y validación con k6/CloudWatch.
+Además del motor, este documento cubre lo que lo conecta con el usuario: la captura del
+ranking de prioridades (contrato, prompt y bloque editable), el endpoint que evalúa y
+guarda cada caso, el almacenamiento en SQLite y las pantallas con URL propia
+(`/casos/<id>`).
+
+Fuera de este alcance: plantillas CloudFormation, despliegue y validación con k6/CloudWatch.
 
 ## Flujo
 
 ```
-Requirements (PB-01) ─► levels = {key: r.value for key, r in reqs.canonical_items()}
-ranking del usuario  ─► weights = rank_to_weights(ranking)           # None -> pesos iguales
-                        contributions = score_by_variable(levels, weights)
-                        result = select(contributions)
-                        message = build_message(result, contributions, unknown_variables(levels))
+Texto del caso ─► extractor (Gemini/OpenAI) ─► 6 requisitos + ranking SOLO si el texto lo dice
+                                           │
+                  usuario revisa y edita ◄─┘ (pantalla de revisión)
+                                           │ POST /api/cases
+                                           ▼
+evaluate(requirements, ranking)   # app/decision_engine/engine.py
+   levels = {key: r.value.value for key, r in reqs.canonical_items()}
+   weights = rank_to_weights(ranking.to_engine_ranking())   # None -> pesos iguales
+   contributions = score_by_variable(levels, weights)
+   result = select(contributions)
+   message = build_message(result, contributions, unknown_variables(levels))
+                                           │
+                                           ▼
+CaseService.create ─► CaseRepository.save (SQLite) ─► id ─► /casos/<id>
 ```
 
 ## Resumen de archivos
@@ -36,7 +50,18 @@ Todas las rutas son relativas a `backend/`.
 | `app/decision_engine/scoring.py` | **nuevo** | Calcula peso × puntaje por arquitectura y variable. |
 | `app/decision_engine/selection.py` | **nuevo** | Elige ganador, calcula margen y detecta trade-off. |
 | `app/decision_engine/explanation.py` | **nuevo** | Arma el mensaje final con plantilla fija. |
-| `app/schemas/business_case.py` | modificado | Se agregó el enum `BusinessPriorityStatement` y el alias `BusinessPriorityRanking`. |
+| `app/decision_engine/engine.py` | **nuevo** | `evaluate()` orquesta los pasos y devuelve `Recommendation` (resultado completo y auditable). |
+| `app/schemas/business_case.py` | modificado | Enum `BusinessPriorityStatement`, modelo `PriorityRanking` y campos `priority_ranking*` en análisis, confirmación y caso confirmado. |
+| `app/ai/prompts/business_case_extractor.py` | modificado | Reglas 2 y 10 ajustadas, sección de prioridades (solo transcripción) y corrección de `near_zero` → `low`. |
+| `app/ai/gemini_extractor.py` | modificado | El esquema que se le pide a Gemini incluye los dos campos del ranking. |
+| `app/persistence/models.py` | **nuevo** | `CaseRecord` (caso guardado) y `CaseSummary` (fila del listado). |
+| `app/persistence/repository.py` | **nuevo** | Interfaz `CaseRepository` y `CaseStorageError`. Lo único que conoce el resto del sistema. |
+| `app/persistence/sqlite_repository.py` | **nuevo** | Implementación en SQLite con la librería estándar. |
+| `app/services/case_service.py` | **nuevo** | Evalúa un caso confirmado, le asigna id y fecha y lo guarda. |
+| `app/services/business_case_service.py` | modificado | `confirm` conserva el ranking. |
+| `app/api/cases.py` | **nuevo** | `POST /api/cases`, `GET /api/cases`, `GET /api/cases/{id}`. |
+| `app/config.py`, `app/main.py` | modificado | `database_path` y la inyección del repositorio en `create_app`. |
+| `.gitignore`, `.env.example` | modificado | Se ignora `data/` y `*.sqlite3`; se documenta `DATABASE_PATH` (opcional). |
 | `tests/test_compatibility_table.py` | **nuevo** | Verifica la tabla y `get_score`. |
 | `tests/engine_fixtures.py` | **nuevo** | Datos compartidos por los tests (caso de la sección 5 del documento del motor). |
 | `tests/test_weights.py` | **nuevo** | Verifica la conversión ranking → pesos. |
@@ -44,6 +69,12 @@ Todas las rutas son relativas a `backend/`.
 | `tests/test_selection.py` | **nuevo** | Verifica ganador, trade-off y desempates. |
 | `tests/test_explanation.py` | **nuevo** | Verifica el texto del mensaje. |
 | `tests/test_engine_invariants.py` | **nuevo** | Propiedad que debe cumplirse en todas las combinaciones posibles. |
+| `tests/test_priority_ranking.py` | **nuevo** | Modelo del ranking, contrato, API, esquemas para los proveedores y prompt. |
+| `tests/test_engine.py` | **nuevo** | `evaluate()`: pesos según el ranking, caída a pesos iguales, `unknown` e ida y vuelta a JSON. |
+| `tests/test_sqlite_repository.py` | **nuevo** | Guardar/leer, persistencia entre instancias, orden, errores del almacenamiento. |
+| `tests/test_cases_api.py` | **nuevo** | Crear, consultar, listar, 404, 422 y 503 de los endpoints de casos. |
+| `tests/conftest.py` | modificado | El cliente de pruebas usa un SQLite temporal, nunca la base real. |
+| `frontend/src/…` | ver sección *Frontend* | Rutas, bloque de prioridades, página del caso y listado. |
 | `docs/pb-02_motor_de_decision.md` | **nuevo** | Este documento. |
 
 ## Detalle por archivo
@@ -124,14 +155,78 @@ Todas las rutas son relativas a `backend/`.
 
 ### `business_case.py` (modificado)
 
-Solo se agregaron 18 líneas, antes de `ServiceInterruptionTolerance`:
-
 - `BusinessPriorityStatement`: las 4 afirmaciones del ranking. El texto completo de cada
-  una sigue en la sección 4 del documento del motor.
-- `BusinessPriorityRanking = dict[BusinessPriorityStatement, int]`: posición elegida por
-  el usuario (1 = la más importante).
+  una está en la sección 4 del documento del motor.
+- `PriorityRanking`: cuatro campos fijos (`never_stop_working`, `lowest_cost`,
+  `fast_under_load`, `protect_information`) con la posición 1 a 4 o `null`. Rechaza posiciones
+  repetidas o fuera de rango. Un orden vacío o incompleto es válido. `to_engine_ranking()`
+  devuelve el diccionario que espera `rank_to_weights`, o `None` si no está completo.
+  Se usa un objeto fijo en lugar de un diccionario abierto porque los modos estrictos de los
+  proveedores de IA rechazan los diccionarios abiertos; tampoco usa `ge`/`le` en el esquema
+  JSON por la misma razón (el rango se valida en un validador).
+- `BusinessCaseAnalysis`: `priority_ranking` y `priority_ranking_evidence` (con valor por
+  defecto, así que los payloads anteriores siguen siendo válidos; sin ranking, la evidencia
+  se descarta). `BusinessCaseConfirmationRequest` y `ConfirmedBusinessCase` llevan
+  `priority_ranking`.
 
-El campo todavía **no** está en `BusinessCaseAnalysis` ni en `BusinessCaseConfirmationRequest`.
+### Prompt del extractor (modificado)
+
+- Regla 2: se permiten las seis variables y el ranking; regla 10: ya no prohíbe "ranking"
+  sino "pesos", y limita el orden al que el caso expresa explícitamente.
+- Sección nueva: el modelo transcribe el orden **solo** si el texto lo dice, copia la
+  evidencia literal, **nunca lo infiere** y deja `null` lo que no se ordenó.
+- Corrección: el prompt hablaba de `near_zero`, que no existe en el esquema; ahora dice `low`.
+
+### `engine.py`
+
+- `evaluate(requirements, ranking) -> Recommendation`: único lugar que conoce el orden de los
+  pasos. Cada paso sigue en su módulo.
+- `Recommendation`: arquitectura ganadora y segunda, totales, margen, `trade_off`,
+  `tie_broken`, mensaje, pesos usados, `weights_source` (`ranking` o `equal`), variables
+  desconocidas y la contribución de cada variable a cada arquitectura. Guarda todo lo
+  necesario para auditar la decisión sin recalcular.
+
+### Persistencia (`app/persistence/`)
+
+- `CaseRepository` (interfaz): `save`, `get`, `list_recent`. Ningún otro módulo conoce SQLite.
+  **Si el almacenamiento pasa a un servicio de AWS** (DynamoDB, RDS…), solo hay que escribir
+  otra implementación de esta interfaz y cambiarla en `create_app`.
+- `SqliteCaseRepository`: una tabla `cases` (id, fecha, arquitectura, trade-off, texto del
+  caso y dos columnas JSON con el caso confirmado y la recomendación). Una conexión por
+  operación (seguro con los hilos de FastAPI); el archivo y la tabla se crean la primera
+  vez que se usa, no al importar la aplicación. Cualquier fallo de SQLite o un registro que
+  ya no coincide con el esquema se convierte en `CaseStorageError`.
+- Ruta del archivo: `DATABASE_PATH` en `.env` (opcional); por defecto `data/seci_ti.sqlite3`
+  en la raíz del repositorio, que está en `.gitignore`. Para empezar de cero basta borrar el
+  archivo.
+
+### API de casos (`app/api/cases.py`)
+
+| Método y ruta | Qué hace | Respuestas |
+|---|---|---|
+| `POST /api/cases` | Recibe el mismo cuerpo que `/confirm`, calcula la recomendación y guarda el caso | 201 con el caso completo; 422 si el cuerpo es inválido (p. ej. posiciones repetidas); 503 si falla el almacenamiento |
+| `GET /api/cases` | Casos recientes (más nuevo primero, `limit` 1 a 200) | 200; 503 |
+| `GET /api/cases/{id}` | Un caso completo | 200; 404 `"No encontramos ese caso."`; 503 |
+
+`POST /api/business-cases/confirm` se mantiene sin cambios (contrato de PB-01). Los mensajes
+de error 503 son genéricos; el detalle solo queda en el log del servidor.
+
+### Frontend (`frontend/src/`)
+
+- **Rutas sin dependencia nueva** (`router.ts`, `components/Link.tsx`): `/` análisis y
+  revisión, `/casos` listado, `/casos/<id>` resultado de un caso. Usa la History API; si el
+  proyecto crece se puede cambiar por `react-router` sin tocar las páginas.
+- `pages/AnalyzePage.tsx`: el flujo de PB-01 que estaba en `App.tsx`. "Confirmar y ver
+  recomendación" crea el caso y navega a `/casos/<id>`.
+- `pages/CasePage.tsx`: recomendación, puntaje de las tres arquitecturas (escala −2 a +3),
+  pesos usados y de dónde salen, tabla de cálculo por variable, caso original y botón para
+  copiar el enlace.
+- `pages/CasesListPage.tsx`: registro de casos guardados.
+- `components/PriorityRankingPanel.tsx` + `priorityRanking.ts`: bloque editable de
+  prioridades con estados *Sin definir / Incompleto / Detectado en tu texto / Editado por ti*;
+  si se elige una posición ocupada, las dos se intercambian.
+- Tipos y cliente: `types.ts`, `api/cases.ts`, `architectures.ts`, `format.ts`.
+- Tests: `App.test.tsx` (14), `priorityRanking.test.ts` (7) y `router.test.ts` (3).
 
 ## Decisiones de diseño
 
@@ -145,11 +240,25 @@ El campo todavía **no** está en `BusinessCaseAnalysis` ni en `BusinessCaseConf
 | Desempate exacto | Orden del catálogo A → B → C | Determinístico y fácil de explicar. |
 | Mensaje final | Plantilla fija | Trazabilidad: todo sale de números ya calculados. |
 | Contrato de salida | Modelo Pydantic inmutable | Convención de `convenciones.md`. |
+| Captura del ranking | El LLM solo transcribe un orden explícito; el usuario lo edita y confirma | El LLM no decide los pesos; el motor sigue siendo determinístico. Inferirlo contaría dos veces la misma evidencia y sesgaría al usuario. |
+| Almacenamiento | SQLite detrás de la interfaz `CaseRepository` | Sin infraestructura nueva para el capstone; cambiar a un servicio de AWS no toca el resto del código. |
+| Qué se guarda | El caso confirmado y la recomendación completa, con pesos y contribuciones | Trazabilidad contexto → decisión (y más adelante → evidencia de k6/CloudWatch) sin recalcular. |
+| Rutas del frontend | Router mínimo propio con la History API | Tres rutas no justifican una dependencia nueva. |
+| Ranking inválido del modelo | Se trata como error del proveedor (503 genérico) | Es la ruta más simple; se puede volver más tolerante (descartar el ranking y avisar). |
 
 ## Validación
 
 - `pytest tests -v` en la máquina del equipo (12-oct-2026): 100 pasaron, 6 se omitieron
   (integración con el proveedor de IA).
+- 13-oct-2026, en un entorno sin FastAPI (no se pudo instalar): 126 pruebas del backend
+  pasaron y 18 (las que usan el cliente HTTP) se omitieron; `ruff check` sin errores en lo
+  nuevo. Los tests de API de `test_cases_api.py`, `test_priority_ranking.py` y
+  `test_business_case_api.py` **hay que correrlos en la máquina del equipo**.
+- Frontend (13-oct-2026): `tsc --noEmit`, ESLint y Prettier sin errores. Los tests de
+  Vitest **no se pudieron ejecutar** (los `node_modules` son de Windows) y hay que correrlos
+  con `npm test`.
+- Prueba manual del ranking con Gemini (13-oct-2026): los cuatro casos de prueba se
+  comportaron como se esperaba (orden completo, parcial, sin orden y sin orden inferido).
 - Contraste independiente: el motor se comparó contra una simulación con fracciones
   exactas en 98 304 escenarios (4 096 combinaciones de niveles × 24 rankings): 0
   discrepancias en totales, trade-off y empates.
@@ -169,24 +278,30 @@ El campo todavía **no** está en `BusinessCaseAnalysis` ni en `BusinessCaseConf
 | `test_scoring.py` | 10 | Reproduce el ejemplo numérico del documento (A −0.35, B 1.70, C 1.40); `unknown` vale 0.5 × peso; errores por datos faltantes o nivel ajeno. |
 | `test_selection.py` | 9 | Ganador y trade-off del ejemplo; borde exacto del umbral; empates; ruido de coma flotante. |
 | `test_explanation.py` | 5 | Mensaje exacto del ejemplo; las `unknown` nunca se presentan como razón; empate; caso sin contribuciones positivas. |
+| `test_priority_ranking.py` | 25 | Campos = afirmaciones; posiciones repetidas o fuera de rango; ranking → pesos del motor; contrato; API; esquemas sin diccionarios abiertos ni `minimum`/`maximum`; prompt sin `near_zero`. |
+| `test_engine.py` | 6 | `evaluate()`: trazabilidad de la recomendación, pesos por ranking o iguales, `unknown`, ida y vuelta a JSON. |
+| `test_sqlite_repository.py` | 10 | Guardar y leer, persistencia entre instancias, nada en disco hasta el primer uso, id duplicado, orden y límite del listado, extracto, registro ilegible, ruta inválida. |
+| `test_cases_api.py` | 8 | Crear (201), consultar, sobrevivir a una instancia nueva, 404, listado, 422 por posiciones repetidas, 503 sin filtrar detalles internos. |
 | `test_engine_invariants.py` | 1 | El total del ganador es positivo en todas las combinaciones. Es lo que justifica el umbral relativo: si alguien cambia la tabla y falla, hay que revisar `TRADE_OFF_RATIO`. |
 
 ## Pendientes y supuestos por confirmar
 
+- **Correr las pruebas en la máquina del equipo** (backend y frontend): ver abajo.
 - **Supuestos por confirmar:** el umbral relativo del 20 % y el desempate por orden del
   catálogo se asumieron; ambos son constantes de una línea en `selection.py`.
-- **Paso 2:** agregar el ranking al contrato (`BusinessCaseAnalysis`,
-  `BusinessCaseConfirmationRequest`), al prompt de los extractores de OpenAI y Gemini y al
-  frontend. El LLM solo transcribe lo que el usuario dice; nunca infiere el ranking.
-- **Paso 7:** endpoint y UI mínima.
-- **Actualizar `motor_de_reglas_puntaje_ponderado.md`:** las secciones 4.1, 6 y 8 siguen
-  marcando como pendiente lo ya decidido. El ejemplo de la sección 5 usa pesos lineales;
-  con los pesos suavizados el mismo caso da margen 0.3375 contra un umbral de 0.3325, así
-  que ya no dispara trade-off. Además, su texto dice que C era mejor en tolerancia a
-  interrupción, pero según la tabla (nivel medio: B +2, C +1) solo es mejor en criticidad.
 - **Validar la tabla de compatibilidad** con Miguel y, si es posible, con el profesor.
-- **Limpieza con `ruff`** en `compatibility_table.py` (orden de imports y formato).
+- **Ranking inválido del modelo:** hoy produce el error genérico; se puede degradar a
+  "sin ranking" con una advertencia.
+- **Almacenamiento:** SQLite vive en el disco donde corra el backend. Para la trazabilidad
+  desde AWS habrá que implementar otro `CaseRepository` (DynamoDB o RDS) y decidir si hay que
+  migrar los casos ya guardados.
+- **Gemini:** la implementación sigue sin aplicar el timeout configurado ni distinguir una
+  clave inválida (decisiones que se dejaron al equipo).
+- **Limpieza con `ruff`:** `ruff format --check` marca archivos que ya venían así
+  (`compatibility_table.py`, una línea en blanco en `business_case.py`).
 - **Hacer commit** de estos cambios siguiendo `convenciones.md`.
+- **Fuera de este documento:** plantillas CloudFormation, despliegue y validación con k6 y
+  CloudWatch.
 
 ## Cómo ejecutar los tests
 
@@ -199,3 +314,22 @@ ruff format . --check
 ```
 
 (En PowerShell 5 el operador `&&` no existe; ejecutar cada comando por separado.)
+
+Frontend, desde `frontend/`:
+
+```
+npm test
+npm run lint
+npm run build
+```
+
+## Cómo probarlo a mano
+
+1. Terminal 1, desde la raíz del repositorio: `.\.venv\Scripts\Activate.ps1` y luego
+   `uvicorn app.main:app --app-dir backend --reload`.
+2. Terminal 2: `cd frontend` y `npm run dev`; abrir `http://localhost:5173`.
+3. Analizar un caso, revisar el bloque de prioridades, confirmar y comprobar que la URL pasa
+   a `/casos/<id>`.
+4. Recargar la página: el caso debe seguir ahí. Abrir `/casos`: debe aparecer en el listado.
+5. Reiniciar el backend y volver a abrir la URL: el caso sigue guardado (está en
+   `data/seci_ti.sqlite3`).

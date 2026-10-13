@@ -12,6 +12,10 @@ htmlcov/
 .venv/
 backend/*.egg-info/
 
+# Local data (casos guardados en SQLite)
+data/
+*.sqlite3
+
 # Node / Vite
 node_modules/
 frontend/dist/
