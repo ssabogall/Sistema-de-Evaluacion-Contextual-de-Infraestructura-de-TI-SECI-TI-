@@ -1,3 +1,4 @@
+import json
 from json import JSONDecodeError
 
 from google import genai
@@ -66,6 +67,31 @@ def _strip_additional_properties(node: object) -> object:
     return node
 
 
+def _fix_unknown_requirements(data: object) -> object:
+    """Corrige una incoherencia frecuente del modelo: value="unknown" con status="detected".
+
+    Pasa cuando el caso solo trae cantidades (p. ej. "120 solicitudes por segundo") y el
+    modelo conserva el numero pero marca la variable como detectada. Un "unknown" no
+    aporta informacion al motor (puntua neutro), asi que se normaliza a status="unknown"
+    y sin evidencia en vez de rechazar todo el analisis. Las cantidades siguen en
+    additional_context y el usuario puede completar la variable en la pantalla de
+    revision. No inventa ningun valor ni toca los demas casos.
+    """
+    requirements = data.get("requirements") if isinstance(data, dict) else None
+    if not isinstance(requirements, dict):
+        return data
+    for requirement in requirements.values():
+        if not isinstance(requirement, dict):
+            continue
+        value = requirement.get("value")
+        if not (isinstance(value, str) and value.strip().lower() == "unknown"):
+            continue
+        if requirement.get("status") in ("detected", "unknown"):
+            requirement["status"] = "unknown"
+            requirement["evidence"] = []
+    return data
+
+
 class GeminiRequirementExtractor(AIRequirementExtractor):
     """Same contract as OpenAIRequirementExtractor, backed by the Gemini API.
 
@@ -124,7 +150,8 @@ class GeminiRequirementExtractor(AIRequirementExtractor):
             if not response.text:
                 raise AIResponseValidationError("The provider returned no parsed output")
 
-            partial = _GeminiAnalysisSchema.model_validate_json(response.text)
+            raw = _fix_unknown_requirements(json.loads(response.text))
+            partial = _GeminiAnalysisSchema.model_validate(raw)
             payload = partial.model_dump(mode="python")
             payload["business_case"] = business_case
             payload["requires_user_confirmation"] = True

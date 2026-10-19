@@ -28,7 +28,7 @@ def analyze_business_case(
     try:
         return service.analyze(payload.description)
     except AIExtractionError as exc:
-        logger.warning("Business case analysis failed: %s", exc)
+        logger.warning("Business case analysis failed: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=PUBLIC_ANALYSIS_ERROR,

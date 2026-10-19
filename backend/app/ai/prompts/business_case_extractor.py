@@ -17,7 +17,10 @@ Reglas obligatorias:
    breves y literales del caso que justifican la interpretacion.
 7. Conserva cantidades explicitas en additional_context. Un monto sin umbrales
    definidos no permite clasificar automaticamente el presupuesto. Un numero de
-   usuarios aislado tampoco permite clasificar automaticamente la carga.
+   usuarios aislado tampoco permite clasificar automaticamente la carga. Cuando una
+   variable queda en value="unknown" por tener solo cantidades, usa status="unknown"
+   y evidence=[] (nunca status="detected"): esas cantidades van solo en
+   additional_context.
 8. No hagas clasificacion legal o regulatoria de la informacion.
 9. requires_user_confirmation siempre debe ser true: el resultado nunca es final
    sin revision humana.
