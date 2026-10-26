@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Link2, Quote, Scale } from "lucide-react";
 
 import { CaseNotFoundError, getCase } from "../api/cases";
 import { ARCHITECTURE_IDS, architectureTitle } from "../architectures";
+import { AwsDeploymentPanel } from "../components/AwsDeploymentPanel";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { Link } from "../components/Link";
 import { formatDate, formatPercent, formatScore } from "../format";
@@ -18,6 +19,19 @@ const SCORE_MAX = 3;
 function barWidth(total: number): string {
   const ratio = (total - SCORE_MIN) / (SCORE_MAX - SCORE_MIN);
   return `${Math.min(100, Math.max(0, ratio * 100))}%`;
+}
+
+function CaseDeployment({ caseId }: { caseId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <details
+      className="aws-deployment-section"
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
+      <summary>Despliegue en AWS</summary>
+      {expanded && <AwsDeploymentPanel caseId={caseId} />}
+    </details>
+  );
 }
 
 export function CasePage({ caseId }: { caseId: string }) {
@@ -181,6 +195,8 @@ export function CasePage({ caseId }: { caseId: string }) {
           </table>
         </div>
       </details>
+
+      <CaseDeployment key={record.id} caseId={record.id} />
 
       <section className="original-case" aria-labelledby="original-title">
         <h2 id="original-title">

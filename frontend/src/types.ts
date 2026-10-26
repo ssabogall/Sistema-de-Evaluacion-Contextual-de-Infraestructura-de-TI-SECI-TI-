@@ -87,3 +87,31 @@ export interface CaseSummary {
   architecture: ArchitectureId;
   trade_off: boolean;
 }
+
+export interface AwsConnection {
+  status: "connected" | "disabled";
+  region: string;
+  account_id: string | null;
+  principal_arn: string | null;
+  deployments_enabled: boolean;
+  message: string;
+}
+
+export interface AwsDeploymentEvent {
+  timestamp: string;
+  logical_resource_id: string;
+  resource_status: string;
+  reason: string | null;
+}
+
+export interface AwsDeployment {
+  case_id: string;
+  architecture: ArchitectureId;
+  region: string;
+  stack_name: string;
+  stack_id: string | null;
+  status: string;
+  outputs: Record<string, string>;
+  events: AwsDeploymentEvent[];
+  last_updated_at: string | null;
+}

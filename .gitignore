@@ -2,6 +2,9 @@
 .env
 backend/.env
 frontend/.env
+.env.*
+!.env.example
+.aws/
 
 # Python
 __pycache__/

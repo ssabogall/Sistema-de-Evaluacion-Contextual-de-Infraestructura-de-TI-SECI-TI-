@@ -855,6 +855,243 @@ pre {
   white-space: pre-wrap;
 }
 
+.aws-deployment-section {
+  margin: 0 0 22px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.aws-deployment-section > summary {
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+.aws-panel {
+  min-width: 0;
+  padding-top: 18px;
+  font-size: 0.88rem;
+}
+
+.aws-heading,
+.aws-state-row,
+.aws-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.aws-heading {
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.aws-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.aws-icon-button,
+.aws-secondary-button,
+.aws-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.aws-icon-button {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+.aws-delete-button {
+  color: var(--danger);
+  border-color: #cda8a4;
+}
+
+.aws-icon-button:hover:not(:disabled),
+.aws-secondary-button:hover:not(:disabled) {
+  background: var(--soft);
+}
+
+.aws-delete-button:hover:not(:disabled) {
+  background: #fff0ee;
+}
+
+.aws-panel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.aws-panel button svg {
+  flex: 0 0 auto;
+}
+
+.aws-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 20px;
+  margin: 0 0 16px;
+}
+
+.aws-meta-wide {
+  grid-column: 1 / -1;
+}
+
+.aws-meta dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.aws-meta dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.aws-message,
+.aws-failure-note {
+  margin-bottom: 16px;
+  color: var(--muted);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.aws-failure-note {
+  color: var(--danger);
+}
+
+.aws-state-row {
+  flex-wrap: wrap;
+  margin: 20px 0 16px;
+}
+
+.aws-state {
+  max-width: 100%;
+  padding: 5px 8px;
+  color: var(--teal-dark);
+  background: #e4f3ef;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.aws-state.is-pending {
+  color: #7d4a00;
+  background: var(--warning-bg);
+}
+
+.aws-state.is-failed {
+  color: var(--danger);
+  background: #fff0ee;
+}
+
+.aws-application-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 16px;
+  color: var(--teal-dark);
+  font-weight: 700;
+}
+
+.aws-progress {
+  min-height: 24px;
+  margin: 12px 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.aws-actions {
+  flex-wrap: wrap;
+}
+
+.aws-actions button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.aws-confirmation,
+.aws-event-log {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.aws-panel h3 {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.aws-confirmation p {
+  max-width: 680px;
+  line-height: 1.6;
+}
+
+.aws-events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aws-events li {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.5;
+}
+
+.aws-events time {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.aws-events strong,
+.aws-events code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.aws-events code {
+  margin-top: 4px;
+  font-size: 0.78rem;
+}
+
+.aws-events p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 620px) {
+  .aws-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aws-events li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+}
+
 .case-list {
   display: grid;
   gap: 12px;
