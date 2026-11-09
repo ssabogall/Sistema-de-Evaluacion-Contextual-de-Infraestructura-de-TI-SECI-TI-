@@ -26,7 +26,7 @@ def analyze_business_case(
     service: BusinessCaseService = Depends(get_business_case_service),
 ) -> BusinessCaseAnalysis:
     try:
-        return service.analyze(payload.description)
+        return service.analyze(payload.description, payload.project_context)
     except AIExtractionError as exc:
         logger.warning("Business case analysis failed: %s", exc, exc_info=True)
         raise HTTPException(

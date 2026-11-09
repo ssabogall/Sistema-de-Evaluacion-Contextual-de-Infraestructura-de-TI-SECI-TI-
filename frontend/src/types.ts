@@ -36,8 +36,15 @@ export type PriorityStatement =
 /** Posición de cada prioridad: 1 = la más importante, 4 = la menos importante, null = sin definir. */
 export type PriorityRanking = Record<PriorityStatement, number | null>;
 
+export type ProjectScenario = "new" | "existing";
+
+export type ProjectContext =
+  | { scenario: "new"; current_architecture: null }
+  | { scenario: "existing"; current_architecture: string };
+
 export interface BusinessCaseAnalysis {
   business_case: string;
+  project_context?: ProjectContext;
   requirements: Requirements;
   additional_context: AdditionalContext;
   missing_requirements: RequirementKey[];
@@ -50,6 +57,7 @@ export interface BusinessCaseAnalysis {
 export interface ConfirmedBusinessCase {
   status: "confirmed";
   business_case: string;
+  project_context?: ProjectContext;
   requirements: Requirements;
   additional_context: AdditionalContext;
   priority_ranking: PriorityRanking;
@@ -78,6 +86,7 @@ export interface CaseRecord {
   created_at: string;
   confirmed: ConfirmedBusinessCase;
   recommendation: Recommendation;
+  advice?: SavedArchitectureAdvice | null;
 }
 
 export interface CaseSummary {
@@ -86,6 +95,56 @@ export interface CaseSummary {
   business_case_excerpt: string;
   architecture: ArchitectureId;
   trade_off: boolean;
+  scenario?: ProjectScenario;
+}
+
+export type AdviceCategory =
+  | "architecture"
+  | "application"
+  | "data"
+  | "security"
+  | "reliability"
+  | "performance"
+  | "operations"
+  | "cost";
+
+export type AdviceLevel = "high" | "medium" | "low";
+
+export interface ImprovementSuggestion {
+  title: string;
+  category: AdviceCategory;
+  priority: AdviceLevel;
+  effort: AdviceLevel;
+  recommendation: string;
+  rationale: string;
+  expected_benefit: string;
+  tradeoffs: string;
+  evidence: string[];
+}
+
+export interface ArchitectureAlternative {
+  name: string;
+  description: string;
+  suitable_when: string;
+  tradeoffs: string;
+  migration_steps: string[];
+}
+
+export interface ArchitectureAdvice {
+  summary: string;
+  current_architecture_assessment: string | null;
+  recommendations: ImprovementSuggestion[];
+  alternatives: ArchitectureAlternative[];
+  next_steps: string[];
+  assumptions: string[];
+  open_questions: string[];
+}
+
+export interface SavedArchitectureAdvice {
+  generated_at: string;
+  provider: string;
+  model: string | null;
+  content: ArchitectureAdvice;
 }
 
 export interface AwsConnection {

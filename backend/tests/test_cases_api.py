@@ -102,6 +102,7 @@ def test_list_cases_returns_newest_first(client_factory) -> None:
         "business_case_excerpt",
         "architecture",
         "trade_off",
+        "scenario",
     }
 
 

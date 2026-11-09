@@ -1,11 +1,10 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
   LoaderCircle,
   Send,
-  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 
@@ -13,6 +12,7 @@ import { analyzeBusinessCase } from "../api/businessCases";
 import { createCase } from "../api/cases";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { PriorityRankingPanel } from "../components/PriorityRankingPanel";
+import { ProjectContextSummary } from "../components/ProjectContextSummary";
 import { RequirementCard } from "../components/RequirementCard";
 import { assignPriority, EMPTY_PRIORITY_RANKING } from "../priorityRanking";
 import { ADDITIONAL_CONTEXT_LABELS, REQUIREMENT_CONFIGS } from "../requirements";
@@ -21,6 +21,8 @@ import type {
   BusinessCaseAnalysis,
   PriorityRanking,
   PriorityStatement,
+  ProjectContext,
+  ProjectScenario,
   RequirementKey,
 } from "../types";
 
@@ -29,12 +31,24 @@ const PLACEHOLDER =
 
 export function AnalyzePage() {
   const [description, setDescription] = useState("");
+  const [scenario, setScenario] = useState<ProjectScenario>("new");
+  const [currentArchitecture, setCurrentArchitecture] = useState("");
   const [analysis, setAnalysis] = useState<BusinessCaseAnalysis | null>(null);
   // Orden que el modelo transcribió del texto; sirve para saber si el usuario lo editó.
   const [detectedRanking, setDetectedRanking] = useState<PriorityRanking>(EMPTY_PRIORITY_RANKING);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const request = useRef<AbortController | null>(null);
+
+  useEffect(() => () => request.current?.abort(), []);
+
+  const descriptionLength = description.trim().length;
+  const architectureLength = currentArchitecture.trim().length;
+  const validArchitecture = architectureLength >= 10 && architectureLength <= 20_000;
+  const canAnalyze =
+    descriptionLength >= 10 && descriptionLength <= 20_000 &&
+    (scenario === "new" || validArchitecture);
 
   const additionalContext = useMemo(() => {
     if (!analysis) return [];
@@ -45,20 +59,32 @@ export function AnalyzePage() {
 
   async function handleAnalyze(event: FormEvent) {
     event.preventDefault();
+    if (!canAnalyze || request.current) return;
+    const controller = new AbortController();
+    request.current = controller;
+    const context: ProjectContext =
+      scenario === "existing"
+        ? { scenario, current_architecture: currentArchitecture.trim() }
+        : { scenario, current_architecture: null };
     setError(null);
     setIsAnalyzing(true);
     try {
-      const result = await analyzeBusinessCase(description.trim());
+      const result = await analyzeBusinessCase(description.trim(), context, controller.signal);
+      if (controller.signal.aborted) return;
       setDetectedRanking(result.priority_ranking);
       setAnalysis(result);
     } catch (requestError) {
+      if (controller.signal.aborted) return;
       setError(
         requestError instanceof Error
           ? requestError.message
           : "No fue posible analizar el caso en este momento. Intenta nuevamente.",
       );
     } finally {
-      setIsAnalyzing(false);
+      if (!controller.signal.aborted) {
+        request.current = null;
+        setIsAnalyzing(false);
+      }
     }
   }
 
@@ -97,20 +123,27 @@ export function AnalyzePage() {
   }
 
   async function handleConfirm() {
-    if (!analysis) return;
+    if (!analysis || request.current) return;
+    const controller = new AbortController();
+    request.current = controller;
     setError(null);
     setIsConfirming(true);
     try {
-      const record = await createCase(analysis);
+      const record = await createCase(analysis, controller.signal);
+      if (controller.signal.aborted) return;
       navigate(`/casos/${record.id}`);
     } catch (requestError) {
+      if (controller.signal.aborted) return;
       setError(
         requestError instanceof Error
           ? requestError.message
           : "No fue posible guardar el caso en este momento. Intenta nuevamente.",
       );
     } finally {
-      setIsConfirming(false);
+      if (!controller.signal.aborted) {
+        request.current = null;
+        setIsConfirming(false);
+      }
     }
   }
 
@@ -128,12 +161,27 @@ export function AnalyzePage() {
         </div>
         <h1 id="entry-title">Describe tu caso de negocio</h1>
         <p className="lead">
-          Describe la aplicación o sistema que deseas soportar. Puedes incluir información sobre
-          usuarios, comportamiento del tráfico, importancia de la disponibilidad, presupuesto y tipo
-          de información manejada.
+          Objetivos del negocio, usuarios, demanda, disponibilidad, presupuesto y situación actual.
         </p>
 
         <form onSubmit={handleAnalyze} className="business-form">
+          <fieldset className="scenario-selector" disabled={isAnalyzing}>
+            <legend>Estado de la plataforma</legend>
+            <div className="scenario-options">
+              {(["new", "existing"] as const).map((value) => (
+                <label key={value}>
+                  <input
+                    type="radio"
+                    name="scenario"
+                    value={value}
+                    checked={scenario === value}
+                    onChange={() => setScenario(value)}
+                  />
+                  <span>{value === "new" ? "Plataforma nueva" : "Plataforma existente"}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <label htmlFor="business-case">Caso de negocio</label>
           <textarea
             id="business-case"
@@ -142,14 +190,41 @@ export function AnalyzePage() {
             placeholder={PLACEHOLDER}
             rows={10}
             maxLength={20_000}
+            disabled={isAnalyzing}
+            aria-describedby="business-case-hint"
             required
           />
+          <p className="field-hint" id="business-case-hint">
+            Entre 10 y 20.000 caracteres, sin contar espacios al inicio o al final.
+          </p>
+          {scenario === "existing" && (
+            <>
+              <label htmlFor="current-architecture">Arquitectura actual completa</label>
+              <p className="field-hint" id="architecture-hint">
+                Componentes, aplicaciones, datos, integraciones, infraestructura, seguridad y operación.
+              </p>
+              <textarea
+                id="current-architecture"
+                value={currentArchitecture}
+                onChange={(event) => setCurrentArchitecture(event.target.value)}
+                rows={8}
+                required
+                disabled={isAnalyzing}
+                aria-invalid={!validArchitecture}
+                aria-describedby="architecture-hint architecture-length"
+              />
+              <p className="field-hint" id="architecture-length">
+                {architectureLength.toLocaleString("es-CO")} / 20.000 caracteres. Se requieren
+                entre 10 y 20.000 caracteres tras quitar espacios de los extremos.
+              </p>
+            </>
+          )}
           <div className="form-footer">
             <span>{description.length.toLocaleString("es-CO")} / 20.000</span>
             <button
               className="primary-button"
               type="submit"
-              disabled={description.trim().length < 10 || isAnalyzing}
+              disabled={!canAnalyze || isAnalyzing}
             >
               {isAnalyzing ? (
                 <>
@@ -168,20 +243,18 @@ export function AnalyzePage() {
 
         {error && <ErrorMessage message={error} />}
 
-        <div className="trust-note">
-          <ShieldCheck size={20} aria-hidden="true" />
-          <p>
-            El análisis solo identifica requisitos. La arquitectura la elige un motor de reglas
-            determinístico después de que confirmes el resultado.
-          </p>
-        </div>
       </section>
     );
   }
 
   return (
     <section className="review-section" aria-labelledby="review-title">
-      <button className="back-button" type="button" onClick={returnToDescription}>
+      <button
+        className="back-button"
+        type="button"
+        onClick={returnToDescription}
+        disabled={isConfirming}
+      >
         <ArrowLeft size={17} aria-hidden="true" />
         Volver al caso
       </button>
@@ -200,6 +273,8 @@ export function AnalyzePage() {
           <span>variables canónicas</span>
         </div>
       </div>
+
+      <ProjectContextSummary context={analysis.project_context} />
 
       {analysis.warnings.length > 0 && (
         <div className="warning-panel">

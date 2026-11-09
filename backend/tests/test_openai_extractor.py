@@ -10,7 +10,7 @@ from app.ai.base import (
 )
 from app.ai.openai_extractor import OpenAIRequirementExtractor
 from app.ai.prompts.business_case_extractor import BUSINESS_CASE_EXTRACTOR_PROMPT
-from app.schemas.business_case import BusinessCaseAnalysis
+from app.schemas.business_case import BusinessCaseAnalysis, BusinessCaseExtraction
 from tests.helpers import analysis_payload
 
 
@@ -61,7 +61,7 @@ def test_structured_output_call_uses_central_prompt_and_preserves_input() -> Non
 
     assert analysis.business_case == original
     call = client.responses.parse.call_args.kwargs
-    assert call["text_format"] is BusinessCaseAnalysis
+    assert call["text_format"] is BusinessCaseExtraction
     assert call["input"][0]["content"] == BUSINESS_CASE_EXTRACTOR_PROMPT
     assert "no eliges\narquitecturas" in BUSINESS_CASE_EXTRACTOR_PROMPT
     assert "servicios AWS" in BUSINESS_CASE_EXTRACTOR_PROMPT

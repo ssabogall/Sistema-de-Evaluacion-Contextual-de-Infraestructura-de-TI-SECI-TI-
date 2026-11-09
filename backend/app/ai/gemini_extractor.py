@@ -1,4 +1,5 @@
 import json
+from contextlib import suppress
 from json import JSONDecodeError
 
 from google import genai
@@ -20,6 +21,7 @@ from app.schemas.business_case import (
     RequirementKey,
     Requirements,
 )
+from app.schemas.project_context import ProjectContext
 
 
 class _GeminiAnalysisSchema(BaseModel):
@@ -113,18 +115,31 @@ class GeminiRequirementExtractor(AIRequirementExtractor):
         self._timeout_seconds = timeout_seconds
         self._client = client
 
-    def extract_requirements(self, business_case: str) -> BusinessCaseAnalysis:
+    def extract_requirements(
+        self, business_case: str, project_context: ProjectContext | None = None
+    ) -> BusinessCaseAnalysis:
         if not self._api_key:
             raise AIConfigurationError("AI_API_KEY is not configured")
         if not self._model:
             raise AIConfigurationError("AI_MODEL is not configured")
 
-        client = self._client or genai.Client(api_key=self._api_key)
+        client = self._client or genai.Client(
+            api_key=self._api_key,
+            http_options=genai_types.HttpOptions(timeout=int(self._timeout_seconds * 1000)),
+        )
 
         try:
             response = client.models.generate_content(
                 model=self._model,
-                contents=business_case,
+                contents=json.dumps(
+                    {
+                        "business_case": business_case,
+                        "project_context": project_context.model_dump(),
+                    },
+                    ensure_ascii=False,
+                )
+                if project_context and project_context.current_architecture
+                else business_case,
                 config=genai_types.GenerateContentConfig(
                     system_instruction=BUSINESS_CASE_EXTRACTOR_PROMPT,
                     response_mime_type="application/json",
@@ -136,15 +151,6 @@ class GeminiRequirementExtractor(AIRequirementExtractor):
                     response_schema=_strip_additional_properties(
                         _GeminiAnalysisSchema.model_json_schema()
                     ),
-                    # DECISION PENDIENTE (equipo): el SDK de google-genai
-                    # permite fijar un timeout via http_options, pero no
-                    # confirmamos en que unidad (ms o s) ni en que version
-                    # del SDK quedo asi. self._timeout_seconds existe y se
-                    # recibe por configuracion, pero no se esta aplicando
-                    # todavia aqui a proposito -- verifiquen la
-                    # documentacion vigente de google-genai antes de
-                    # cablear esto, para no fijar un valor equivocado en
-                    # silencio.
                 ),
             )
             if not response.text:
@@ -155,6 +161,7 @@ class GeminiRequirementExtractor(AIRequirementExtractor):
             payload = partial.model_dump(mode="python")
             payload["business_case"] = business_case
             payload["requires_user_confirmation"] = True
+            payload["project_context"] = project_context or ProjectContext()
             return BusinessCaseAnalysis.model_validate(payload)
         except AIResponseValidationError:
             raise
@@ -175,3 +182,7 @@ class GeminiRequirementExtractor(AIRequirementExtractor):
             raise AIResponseValidationError("The AI response failed schema validation") from exc
         except Exception as exc:
             raise AIProviderError("Unexpected AI provider failure") from exc
+        finally:
+            if self._client is None:
+                with suppress(Exception):
+                    client.close()

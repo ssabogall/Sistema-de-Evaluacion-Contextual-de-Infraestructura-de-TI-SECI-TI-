@@ -5,6 +5,7 @@ import { architectureTitle } from "../architectures";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { Link } from "../components/Link";
 import { formatDate } from "../format";
+import { scenarioLabel } from "../projectContext";
 import type { CaseSummary } from "../types";
 
 type ListResult = { cases: CaseSummary[] } | { error: Error };
@@ -48,6 +49,7 @@ export function CasesListPage() {
                 <span className="case-item-text">{item.business_case_excerpt}</span>
                 <span className="case-item-meta">
                   <span className="case-badge">{architectureTitle(item.architecture)}</span>
+                  <span>{scenarioLabel(item.scenario)}</span>
                   {item.trade_off && <span className="case-badge is-warning">Ajustado</span>}
                   <time dateTime={item.created_at}>{formatDate(item.created_at)}</time>
                 </span>

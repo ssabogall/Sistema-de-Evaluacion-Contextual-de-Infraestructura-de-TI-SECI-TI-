@@ -1,13 +1,35 @@
 # SECI-TI
 
 Sistema de Evaluación Contextual de Infraestructura de TI. Esta versión implementa
-el flujo caso de negocio → extracción con IA → revisión y confirmación humana →
-recomendación determinística A/B/C → caso guardado → despliegue en AWS.
+el flujo caso de negocio y arquitectura actual → extracción con IA → revisión y
+confirmación humana → recomendación determinística A/B/C → caso guardado →
+recomendaciones ampliadas con IA y despliegue de demostración en AWS.
 
 El motor usa puntajes ponderados y prioridades confirmadas. Los casos se guardan
 en SQLite. La conexión AWS y el despliegue con CloudFormation son opcionales;
 las pruebas de carga con k6 y la validación experimental con CloudWatch siguen
 pendientes.
+
+## Plataformas nuevas y existentes
+
+El formulario permite seleccionar una plataforma nueva o describir una existente.
+En el segundo caso se guarda también la arquitectura actual: componentes, servicios,
+datos, conexiones y problemas expresados por el usuario. La extracción conserva
+ese texto sin tratar las capacidades actuales como requisitos deseados.
+
+El detalle del caso mantiene la recomendación A/B/C y añade un informe de IA con
+mejoras priorizadas, alternativas fuera del catálogo, pasos siguientes, supuestos
+y preguntas pendientes. El informe se solicita con **Generar recomendaciones**;
+abrir o guardar un caso no genera este informe ni consume tokens adicionales por él.
+Una vez generado se guarda en SQLite y sólo se vuelve a llamar a la IA al regenerarlo.
+
+Las sugerencias se basan en la descripción y los requisitos confirmados. No se
+inspecciona la plataforma real ni se ejecutan las sugerencias. El botón de despliegue
+sigue utilizando las plantillas A/B/C y la misma aplicación de demostración.
+Los casos anteriores continúan disponibles sin tener que volver a analizarlos.
+
+El contrato y las decisiones están en
+[`docs/pb-04_contexto_y_recomendaciones.md`](docs/pb-04_contexto_y_recomendaciones.md).
 
 ## Estructura
 
@@ -123,3 +145,29 @@ Content-Type: application/json
 
 La respuesta final contiene `status: "confirmed"`, el caso original, los seis
 requisitos y el contexto adicional.
+
+Para una plataforma existente, `POST /api/business-cases/analyze` también acepta:
+
+```json
+{
+  "description": "Nuestro portal recibe picos de visitas y debe seguir disponible durante las ventas.",
+  "project_context": {
+    "scenario": "existing",
+    "current_architecture": "Una VM ejecuta Nginx, la aplicación y PostgreSQL. Los respaldos son manuales y los reportes lentos durante las ventas."
+  }
+}
+```
+
+`project_context` se conserva al confirmar y guardar el caso. Para el informe ampliado:
+
+```http
+POST /api/cases/{id}/advice
+Content-Type: application/json
+
+{"regenerate": false}
+```
+
+La respuesta contiene `generated_at`, `provider`, `model` y `content`. Si ya existe
+un informe, se devuelve el guardado. `{"regenerate": true}` solicita una nueva
+respuesta al proveedor y reemplaza el informe sólo después de validar y guardar
+el resultado correctamente.

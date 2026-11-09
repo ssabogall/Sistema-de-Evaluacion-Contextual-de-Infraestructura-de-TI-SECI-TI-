@@ -34,7 +34,7 @@ function App() {
         </div>
         <div>
           <strong>SECI-TI</strong>
-          <span>Evaluación contextual de infraestructura</span>
+          <span>Evaluación y recomendaciones de arquitectura</span>
         </div>
         <nav className="topbar-nav" aria-label="Principal">
           <Link to="/">Nuevo caso</Link>

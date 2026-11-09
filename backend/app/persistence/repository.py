@@ -8,6 +8,7 @@ solo hay que escribir otra implementacion de esta interfaz y cambiarla en create
 from abc import ABC, abstractmethod
 
 from app.persistence.models import CaseRecord, CaseSummary
+from app.schemas.architecture_advice import SavedArchitectureAdvice
 
 
 class CaseStorageError(Exception):
@@ -26,3 +27,12 @@ class CaseRepository(ABC):
     @abstractmethod
     def list_recent(self, limit: int = 50) -> list[CaseSummary]:
         """Los casos mas recientes primero."""
+
+    def save_advice(
+        self,
+        case_id: str,
+        advice: SavedArchitectureAdvice,
+        *,
+        overwrite: bool = True,
+    ) -> SavedArchitectureAdvice:
+        raise CaseStorageError("El repositorio no admite informes de recomendaciones")

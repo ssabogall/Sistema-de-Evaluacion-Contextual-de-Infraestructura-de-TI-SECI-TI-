@@ -1,16 +1,22 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
+import { analyzeBusinessCase, confirmBusinessCase } from "./api/businessCases";
+import { createCase, getCase, listCases } from "./api/cases";
+import { CasePage } from "./pages/CasePage";
+import { adviceFixture } from "./test/adviceFixture";
 import type {
   ArchitectureId,
   BusinessCaseAnalysis,
   CaseRecord,
   CaseSummary,
   PriorityRanking,
+  ProjectContext,
   Recommendation,
   RequirementKey,
+  SavedArchitectureAdvice,
 } from "./types";
 
 const unknown = { value: "unknown", status: "unknown" as const, evidence: [] };
@@ -431,5 +437,248 @@ describe("Unknown routes", () => {
     render(<App />);
 
     expect(screen.getByRole("heading", { name: "Página no encontrada" })).toBeVisible();
+  });
+});
+
+describe("Project context", () => {
+  const currentArchitecture = "API y procesos de notificación en una VM. PostgreSQL local, " +
+    "integración con pagos, acceso por VPN, copias diarias y monitoreo manual. " +
+    "Las notificaciones se envían durante el pago.";
+  const existingContext: ProjectContext = { scenario: "existing", current_architecture: currentArchitecture };
+
+  it("sends a complete existing context through analysis, review and saving without generating advice", async () => {
+    const record = caseRecord();
+    record.confirmed.project_context = existingContext;
+    const fetchMock = mockApi({
+      "POST /api/business-cases/analyze": () => ({ body: { ...analysis, project_context: existingContext } }),
+      "POST /api/cases": () => ({ status: 201, body: record }),
+      [`GET /api/cases/${CASE_ID}`]: () => ({ body: record }),
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("radio", { name: "Plataforma existente" }));
+    fireEvent.change(screen.getByLabelText("Caso de negocio"), { target: { value: `  ${analysis.business_case}  ` } });
+    fireEvent.change(screen.getByLabelText("Arquitectura actual completa"), { target: { value: `  ${currentArchitecture}  ` } });
+    await user.click(screen.getByRole("button", { name: "Analizar requisitos" }));
+    await screen.findByRole("heading", { name: "Requisitos identificados" });
+    expect(screen.getByText("Plataforma existente")).toBeVisible();
+    expect(screen.getByText(currentArchitecture)).toBeVisible();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/business-cases/analyze");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      description: analysis.business_case, project_context: existingContext,
+    });
+    await user.click(screen.getByRole("button", { name: CONFIRM }));
+    await screen.findByRole("heading", { name: RECOMMENDATION_HEADING });
+    expect(createCaseBody(fetchMock).project_context).toEqual(existingContext);
+    expect(screen.getByText(currentArchitecture)).toBeVisible();
+    expect(screen.getByText("Plataforma existente")).toBeVisible();
+    expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain(`/api/cases/${CASE_ID}/advice`);
+  });
+
+  it("preserves the architecture draft across scenario changes and returning from review", async () => {
+    const fetchMock = mockFlow(analysis);
+    const user = userEvent.setup();
+    render(<App />);
+    expect(screen.getByRole("radio", { name: "Plataforma nueva" })).toBeChecked();
+    expect(screen.queryByLabelText("Arquitectura actual completa")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Plataforma existente" }));
+    fireEvent.change(screen.getByLabelText("Arquitectura actual completa"), { target: { value: currentArchitecture } });
+    fireEvent.change(screen.getByLabelText("Caso de negocio"), { target: { value: analysis.business_case } });
+    await user.click(screen.getByRole("radio", { name: "Plataforma nueva" }));
+    expect(screen.queryByLabelText("Arquitectura actual completa")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Analizar requisitos" }));
+    await screen.findByRole("heading", { name: "Requisitos identificados" });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).project_context).toEqual({ scenario: "new", current_architecture: null });
+    await user.click(screen.getByRole("button", { name: "Volver al caso" }));
+    await user.click(screen.getByRole("radio", { name: "Plataforma existente" }));
+    expect(screen.getByLabelText("Arquitectura actual completa")).toHaveValue(currentArchitecture);
+    expect(screen.getByLabelText("Caso de negocio")).toHaveValue(analysis.business_case);
+  });
+
+  it("validates existing architecture limits after trimming and supports native radio keyboard navigation", async () => {
+    const fetchMock = mockFlow(analysis);
+    const user = userEvent.setup();
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Caso de negocio"), { target: { value: analysis.business_case } });
+    const newRadio = screen.getByRole("radio", { name: "Plataforma nueva" });
+    newRadio.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("radio", { name: "Plataforma existente" })).toBeChecked();
+    const architecture = screen.getByLabelText("Arquitectura actual completa");
+    const analyze = screen.getByRole("button", { name: "Analizar requisitos" });
+    for (const value of ["", "          ", "  123456789  ", "a".repeat(20_001)]) {
+      fireEvent.change(architecture, { target: { value } });
+      expect(analyze).toBeDisabled();
+      expect(architecture).toHaveAttribute("aria-invalid", "true");
+    }
+    for (const value of ["  1234567890  ", `  ${"a".repeat(20_000)}  `]) {
+      fireEvent.change(architecture, { target: { value } });
+      expect(analyze).toBeEnabled();
+      expect(architecture).toHaveAttribute("aria-invalid", "false");
+    }
+    fireEvent.change(screen.getByLabelText("Caso de negocio"), { target: { value: "  123456789  " } });
+    expect(analyze).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows existing and legacy default scenarios in the saved cases list", async () => {
+    mockApi({ "GET /api/cases": () => ({ body: [
+      { id: "existing-case", created_at: caseRecord().created_at, business_case_excerpt: "Caso existente", architecture: "architecture_b", trade_off: false, scenario: "existing" },
+      { id: "legacy-case", created_at: caseRecord().created_at, business_case_excerpt: "Caso anterior", architecture: "architecture_a", trade_off: false },
+    ] }) });
+    window.history.pushState({}, "", "/casos");
+    render(<App />);
+    expect(await screen.findByText("Plataforma existente")).toBeVisible();
+    expect(screen.getByText("Plataforma nueva")).toBeVisible();
+  });
+});
+
+describe("Persisted advice integration", () => {
+  it("generates on demand, reloads saved advice via GET without another POST and preserves it on 503", async () => {
+    let savedAdvice: SavedArchitectureAdvice | null = null;
+    let advicePosts = 0;
+    const saved = adviceFixture();
+    const fetchMock = mockApi({
+      [`GET /api/cases/${CASE_ID}`]: () => ({ body: caseRecord({ advice: savedAdvice }) }),
+      [`POST /api/cases/${CASE_ID}/advice`]: (init) => {
+        advicePosts++;
+        expect(JSON.parse(String(init?.body))).toEqual({ regenerate: advicePosts > 1 });
+        if (advicePosts > 1) return { status: 503, body: { detail: "El proveedor IA no está disponible." } };
+        savedAdvice = saved;
+        return { body: saved };
+      },
+    });
+    window.history.pushState({}, "", `/casos/${CASE_ID}`);
+    const user = userEvent.setup();
+    const first = render(<App />);
+    await screen.findByRole("heading", { name: RECOMMENDATION_HEADING });
+    expect(advicePosts).toBe(0);
+    await user.click(screen.getByRole("button", { name: "Generar recomendaciones" }));
+    expect(await screen.findByText(saved.content.summary)).toBeVisible();
+    expect(advicePosts).toBe(1);
+
+    first.unmount();
+    render(<App />);
+    expect(await screen.findByText(saved.content.summary)).toBeVisible();
+    expect(fetchMock.mock.calls.filter(([url, init]) => url === `/api/cases/${CASE_ID}` && !init?.method)).toHaveLength(2);
+    expect(advicePosts).toBe(1);
+    await user.click(screen.getByRole("button", { name: "Regenerar recomendaciones" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("El proveedor IA no está disponible.");
+    expect(screen.getByText(saved.content.summary)).toBeVisible();
+    expect(screen.getByRole("heading", { name: RECOMMENDATION_HEADING })).toBeVisible();
+    await user.click(screen.getByText("Ver cálculo por variable"));
+    expect(screen.getByRole("table")).toBeVisible();
+    expect(screen.getByText("Despliegue en AWS")).toBeVisible();
+    expect(advicePosts).toBe(2);
+  });
+
+  it("loads legacy cases with an empty report and default new scenario", async () => {
+    const fetchMock = mockApi({ [`GET /api/cases/${CASE_ID}`]: () => ({ body: caseRecord() }) });
+    window.history.pushState({}, "", `/casos/${CASE_ID}`);
+    render(<App />);
+    await screen.findByRole("heading", { name: RECOMMENDATION_HEADING });
+    expect(screen.getByText("Plataforma nueva")).toBeVisible();
+    expect(screen.getByText("Sin informe generado.")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Context API contract and defaults", () => {
+  it.each<ProjectContext>([
+    { scenario: "new", current_architecture: null },
+    { scenario: "existing", current_architecture: "  Aplicación monolítica, PostgreSQL y acceso por VPN.  " },
+  ])("sends project_context on analyze, confirm and create for $scenario", async (context) => {
+    const normalized = { ...context, current_architecture: context.current_architecture?.trim() ?? null };
+    const fetchMock = mockApi({
+      "POST /api/business-cases/analyze": () => ({ body: analysis }),
+      "POST /api/business-cases/confirm": () => ({ body: caseRecord().confirmed }),
+      "POST /api/cases": () => ({ body: caseRecord() }),
+    });
+    const signal = new AbortController().signal;
+    const result = await analyzeBusinessCase(`  ${analysis.business_case}  `, context, signal);
+    expect(result.project_context).toEqual(normalized);
+    const confirmed = await confirmBusinessCase(result, signal);
+    expect(confirmed.project_context).toEqual(normalized);
+    await createCase(result, signal);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/business-cases/analyze", "/api/business-cases/confirm", "/api/cases",
+    ]);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ description: analysis.business_case, project_context: normalized });
+    for (const [, init] of fetchMock.mock.calls.slice(1)) {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        business_case: analysis.business_case,
+        project_context: normalized,
+        requirements: analysis.requirements,
+        additional_context: analysis.additional_context,
+        priority_ranking: analysis.priority_ranking,
+      });
+      expect(init?.signal).toBe(signal);
+    }
+  });
+
+  it("normalizes legacy analysis, confirmation, case and list responses", async () => {
+    mockApi({
+      "POST /api/business-cases/analyze": () => ({ body: analysis }),
+      "POST /api/business-cases/confirm": () => ({ body: caseRecord().confirmed }),
+      "POST /api/cases": () => ({ body: caseRecord() }),
+      [`GET /api/cases/${CASE_ID}`]: () => ({ body: caseRecord() }),
+      "GET /api/cases": () => ({ body: [{ id: CASE_ID }] }),
+    });
+    const context = { scenario: "new", current_architecture: null };
+    expect((await analyzeBusinessCase(analysis.business_case)).project_context).toEqual(context);
+    expect((await confirmBusinessCase(analysis)).project_context).toEqual(context);
+    for (const record of [await createCase(analysis), await getCase(CASE_ID)]) {
+      expect(record.confirmed.project_context).toEqual(context);
+      expect(record.advice).toBeNull();
+    }
+    expect((await listCases())[0].scenario).toBe("new");
+  });
+});
+
+describe("Request lifecycle", () => {
+  it.each(["analysis", "confirmation"])("aborts %s on unmount and ignores late results", async (stage) => {
+    let resolve!: (value: unknown) => void;
+    const pending = new Promise((yes) => { resolve = yes; });
+    let requestSignal: AbortSignal | undefined;
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      if (stage === "analysis" || init?.method === "POST" && _url === "/api/cases") {
+        requestSignal = init?.signal as AbortSignal;
+        await pending;
+        return { ok: true, json: async () => stage === "analysis" ? analysis : caseRecord() };
+      }
+      return { ok: true, json: async () => analysis };
+    }));
+    const user = userEvent.setup();
+    const view = render(<App />);
+    fireEvent.change(screen.getByLabelText("Caso de negocio"), { target: { value: analysis.business_case } });
+    await user.click(screen.getByRole("button", { name: "Analizar requisitos" }));
+    if (stage === "confirmation") {
+      await screen.findByRole("heading", { name: "Requisitos identificados" });
+      await user.click(screen.getByRole("button", { name: CONFIRM }));
+    }
+    view.unmount();
+    expect(requestSignal?.aborted).toBe(true);
+    await act(async () => resolve(undefined));
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("ignores a late case GET when navigating and aborts GET on unmount", async () => {
+    let resolveOld!: (value: unknown) => void;
+    const old = new Promise((yes) => { resolveOld = yes; });
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "/api/cases/case-a") await old;
+      return { ok: true, json: async () => caseRecord({ id: url.endsWith("case-a") ? "case-a" : "case-b" }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { rerender, unmount } = render(<CasePage caseId="case-a" />);
+    const firstSignal = (vi.mocked(fetch).mock.calls[0][1] as RequestInit).signal;
+    rerender(<CasePage caseId="case-b" />);
+    expect(firstSignal?.aborted).toBe(true);
+    await screen.findByText("Caso case-b");
+    await act(async () => resolveOld(undefined));
+    expect(screen.queryByText("Caso case-a")).not.toBeInTheDocument();
+    const secondSignal = (vi.mocked(fetch).mock.calls[1][1] as RequestInit).signal;
+    unmount();
+    expect(secondSignal?.aborted).toBe(true);
   });
 });

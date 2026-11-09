@@ -4,8 +4,10 @@ import { ArrowLeft, Check, Link2, Quote, Scale } from "lucide-react";
 import { CaseNotFoundError, getCase } from "../api/cases";
 import { ARCHITECTURE_IDS, architectureTitle } from "../architectures";
 import { AwsDeploymentPanel } from "../components/AwsDeploymentPanel";
+import { ArchitectureAdvicePanel } from "../components/ArchitectureAdvicePanel";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { Link } from "../components/Link";
+import { ProjectContextSummary } from "../components/ProjectContextSummary";
 import { formatDate, formatPercent, formatScore } from "../format";
 import { PRIORITY_CONFIGS, REQUIREMENT_CONFIGS } from "../requirements";
 import type { CaseRecord } from "../types";
@@ -39,17 +41,17 @@ export function CasePage({ caseId }: { caseId: string }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    getCase(caseId).then(
+    const controller = new AbortController();
+    getCase(caseId, controller.signal).then(
       (record) => {
-        if (!cancelled) setResult({ id: caseId, record });
+        if (!controller.signal.aborted) setResult({ id: caseId, record });
       },
       (error: Error) => {
-        if (!cancelled) setResult({ id: caseId, error });
+        if (!controller.signal.aborted) setResult({ id: caseId, error });
       },
     );
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [caseId]);
 
@@ -197,6 +199,10 @@ export function CasePage({ caseId }: { caseId: string }) {
       </details>
 
       <CaseDeployment key={record.id} caseId={record.id} />
+
+      <ProjectContextSummary context={confirmed.project_context} />
+
+      <ArchitectureAdvicePanel caseId={record.id} savedAdvice={record.advice} />
 
       <section className="original-case" aria-labelledby="original-title">
         <h2 id="original-title">

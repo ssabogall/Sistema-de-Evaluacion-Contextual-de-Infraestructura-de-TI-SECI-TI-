@@ -3,11 +3,14 @@ from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.project_context import ProjectContext
+
 
 class RequirementStatus(StrEnum):
     DETECTED = "detected"
     UNKNOWN = "unknown"
     CONFLICT = "conflict"
+
 
 class StandardLevel(StrEnum):
     LOW = "low"
@@ -182,14 +185,20 @@ class AnalyzeBusinessCaseRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     description: str = Field(min_length=10, max_length=20_000)
+    project_context: ProjectContext = Field(default_factory=ProjectContext)
 
     @field_validator("description")
     @classmethod
     def strip_description(cls, value: str) -> str:
-        return value.strip()
+        stripped = value.strip()
+        if len(stripped) < 10:
+            raise ValueError(
+                "The business description must contain at least 10 non-padding characters"
+            )
+        return stripped
 
 
-class BusinessCaseAnalysis(BaseModel):
+class BusinessCaseExtraction(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     business_case: str = Field(min_length=1, max_length=20_000)
@@ -208,7 +217,7 @@ class BusinessCaseAnalysis(BaseModel):
         return list(dict.fromkeys(cleaned))
 
     @model_validator(mode="after")
-    def synchronize_missing_requirements(self) -> "BusinessCaseAnalysis":
+    def synchronize_missing_requirements(self) -> "BusinessCaseExtraction":
         self.missing_requirements = [
             key
             for key, requirement in self.requirements.canonical_items()
@@ -217,16 +226,21 @@ class BusinessCaseAnalysis(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def drop_evidence_without_ranking(self) -> "BusinessCaseAnalysis":
+    def drop_evidence_without_ranking(self) -> "BusinessCaseExtraction":
         if self.priority_ranking.is_empty():
             self.priority_ranking_evidence = []
         return self
+
+
+class BusinessCaseAnalysis(BusinessCaseExtraction):
+    project_context: ProjectContext = Field(default_factory=ProjectContext)
 
 
 class BusinessCaseConfirmationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     business_case: str = Field(min_length=1, max_length=20_000)
+    project_context: ProjectContext = Field(default_factory=ProjectContext)
     requirements: Requirements
     additional_context: AdditionalContext = Field(default_factory=AdditionalContext)
     priority_ranking: PriorityRanking = Field(default_factory=PriorityRanking)
@@ -237,6 +251,7 @@ class ConfirmedBusinessCase(BaseModel):
 
     status: Literal["confirmed"] = "confirmed"
     business_case: str
+    project_context: ProjectContext = Field(default_factory=ProjectContext)
     requirements: Requirements
     additional_context: AdditionalContext
     priority_ranking: PriorityRanking
