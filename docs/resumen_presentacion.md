@@ -394,3 +394,65 @@ Get-ChildItem infrastructure -Recurse
 
 Carpetas `architecture-a`, `architecture-b` y `architecture-c`, listas para las plantillas
 CloudFormation.
+
+---
+
+## 15. Cómo mostrar y explicar las pruebas
+
+**Qué es un test aquí.** Una función `test_...` en `backend/tests/` que arma una entrada,
+llama al código real y compara con el resultado que el equipo espera (`assert`). Si la
+afirmación se cumple, pasa; si no, falla y dice qué esperaba y qué obtuvo. `pytest` busca
+todos los archivos `test_*.py` y ejecuta cada función por separado.
+
+**Por qué el resumen solo muestra puntos.** `pytest` a secas imprime un símbolo por test:
+`.` pasó, `F` falló, `s` omitido. Con `-v` imprime una línea por test, con su nombre.
+
+| Qué quieres mostrar | Comando (desde `backend`) |
+|---|---|
+| Una línea por test, con su nombre | `pytest -v` |
+| Solo el motor, test por test | `pytest tests/test_selection.py -v` |
+| Solo los tests de un tema (por palabra en el nombre) | `pytest -k trade_off -v` |
+| Lista de todos los tests sin ejecutarlos | `pytest --collect-only -q` |
+| Por qué se omitieron los `s` | `pytest -rs` |
+| Frontend, test por test | `npx vitest run --reporter=verbose` (desde `frontend`) |
+
+**Dónde está el código de cada test.** Se abre el archivo y se lee:
+
+```powershell
+code backend\tests\test_selection.py
+```
+(o `Get-Content backend\tests\test_selection.py` si no tienes `code` en el PATH)
+
+| Archivo | Qué prueba |
+|---|---|
+| `test_weights.py` | Conversión del ranking en pesos (32,5/27,5/22,5/17,5 y 25 % de respaldo) |
+| `test_compatibility_table.py` | La tabla −2..+3 está completa y es coherente |
+| `test_scoring.py` | Puntaje por variable, incluido el valor neutro 0,5 de `unknown` |
+| `test_selection.py` | Ganador, margen, trade-off, empates y el borde del 20 % |
+| `test_explanation.py` | El mensaje que explica la recomendación |
+| `test_engine.py`, `test_engine_invariants.py` | El motor completo y sus invariantes |
+| `test_priority_ranking.py` | Captura y validación del orden de prioridades |
+| `test_schemas.py`, `test_gemini_extractor.py`, `test_openai_extractor.py` | Contrato de la IA y respuestas inválidas |
+| `test_sqlite_repository.py`, `test_cases_api.py` | Guardado de casos y endpoints |
+
+**Ejemplo para explicar en voz alta** (`test_selection.py`, el ejemplo numérico del
+documento):
+
+```python
+def test_worked_example_picks_b_and_flags_c_as_a_close_second() -> None:
+    result = select(score_by_variable(DOC_REQUIREMENTS, DOC_WEIGHTS))
+    assert result.winner == A.B
+    assert result.totals[A.B] == pytest.approx(1.70, abs=1e-9)
+    assert result.margin == pytest.approx(0.30, abs=1e-9)
+    assert result.trade_off is True   # 0.30 < 20 % de 1.70 = 0.34
+```
+
+Se lee así: "tomamos el caso del documento, lo pasamos por el motor y exigimos que gane B con
+1,70 y que se marque trade-off porque el margen de 0,30 es menor al 20 % de 1,70". Ese test
+reproduce a mano el cálculo del modelo, así que sirve como prueba de que el código hace lo
+que dice el documento.
+
+**Demo de que los tests detectan errores (opcional, 1 minuto).** Cambia temporalmente
+`1.70` por `1.80` en ese test, ejecuta `pytest tests/test_selection.py -v` y se verá un `FAILED`
+con el detalle de lo esperado y lo obtenido. Deshaz el cambio (Ctrl+Z) y vuelve a ejecutar
+para ver el verde. Asegúrate de revertirlo antes de hacer commit.
