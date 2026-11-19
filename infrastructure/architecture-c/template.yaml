@@ -1,0 +1,476 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SECI-TI C - two-AZ ALB and compute, scaling from 2 to 4.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues: [t2.micro, t3.micro]
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  CaseId:
+    Type: String
+    MinLength: 1
+    MaxLength: 256
+    Description: Business case identifier, used only as a resource tag.
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: '${AWS::StackName}-vpc'
+        - Key: CaseId
+          Value:
+            Ref: CaseId
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: CaseId
+          Value:
+            Ref: CaseId
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: Vpc
+      InternetGatewayId:
+        Ref: InternetGateway
+  PublicSubnetOne:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: Vpc
+      CidrBlock: 10.42.0.0/24
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: ''
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: '${AWS::StackName}-public-1'
+        - Key: CaseId
+          Value:
+            Ref: CaseId
+  PublicSubnetTwo:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: Vpc
+      CidrBlock: 10.42.1.0/24
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: ''
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: '${AWS::StackName}-public-2'
+        - Key: CaseId
+          Value:
+            Ref: CaseId
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: Vpc
+      Tags:
+        - Key: CaseId
+          Value:
+            Ref: CaseId
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+  PublicSubnetOneRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicSubnetOne
+      RouteTableId:
+        Ref: PublicRouteTable
+  PublicSubnetTwoRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicSubnetTwo
+      RouteTableId:
+        Ref: PublicRouteTable
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public laboratory HTTP listener.
+      VpcId:
+        Ref: Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 10.42.0.0/16
+      Tags:
+        - Key: CaseId
+          Value:
+            Ref: CaseId
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTP from the ALB security group only.
+      VpcId:
+        Ref: Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId:
+            Ref: LoadBalancerSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: CaseId
+          Value:
+            Ref: CaseId
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn:
+      - PublicDefaultRoute
+      - PublicSubnetOneRouteTableAssociation
+      - PublicSubnetTwoRouteTableAssociation
+    Properties:
+      Type: application
+      Scheme: internet-facing
+      IpAddressType: ipv4
+      Subnets:
+        - Ref: PublicSubnetOne
+        - Ref: PublicSubnetTwo
+      SecurityGroups:
+        - Ref: LoadBalancerSecurityGroup
+      Tags:
+        - Key: CaseId
+          Value:
+            Ref: CaseId
+  AppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId:
+        Ref: Vpc
+      Protocol: HTTP
+      Port: 80
+      TargetType: instance
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: traffic-port
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 15
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Matcher:
+        HttpCode: '200'
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+        - Key: load_balancing.cross_zone.enabled
+          Value: 'true'
+      Tags:
+        - Key: CaseId
+          Value:
+            Ref: CaseId
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn:
+        Ref: LoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: AppTargetGroup
+  AppLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: CaseId
+              Value:
+                Ref: CaseId
+      LaunchTemplateData:
+        ImageId:
+          Ref: LatestAmiId
+        InstanceType:
+          Ref: InstanceType
+        Monitoring:
+          Enabled: true
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpTokens: required
+          HttpPutResponseHopLimit: 1
+          InstanceMetadataTags: disabled
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            DeleteOnTermination: true
+            Groups:
+              - Ref: AppSecurityGroup
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 8
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: true
+        TagSpecifications:
+          - ResourceType: volume
+            Tags:
+              - Key: Project
+                Value: SECI-TI
+              - Key: Architecture
+                Value: C
+              - Key: CaseId
+                Value:
+                  Ref: CaseId
+              - Key: StackName
+                Value:
+                  Ref: AWS::StackName
+        UserData:
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/bash
+              set -Eeuo pipefail
+              exec > >(tee -a /var/log/seci-ti-bootstrap.log /dev/console) 2>&1
+
+              signal_result() {
+                status=$?
+                trap - EXIT
+                for attempt in 1 2 3; do
+                  if timeout 20s /opt/aws/bin/cfn-signal --exit-code "$status" \
+                      --stack '${AWS::StackName}' --resource AppAutoScalingGroup --region '${AWS::Region}'; then
+                    exit "$status"
+                  fi
+                  sleep 5
+                done
+                exit 1
+              }
+              trap signal_result EXIT
+
+              timeout --signal=TERM --kill-after=10s 540s bash -Eeuo pipefail <<'BOOTSTRAP'
+              for attempt in 1 2 3; do
+                if dnf install -y --setopt=timeout=20 --setopt=retries=2 nginx python3 aws-cfn-bootstrap; then
+                  break
+                fi
+                if [ "$attempt" -eq 3 ]; then exit 1; fi
+                sleep 5
+              done
+              install -d -m 755 /opt/seci-ti
+              cat > /opt/seci-ti/app.py <<'PYTHON'
+              import hashlib
+              import json
+              import socket
+              from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+              class Handler(BaseHTTPRequestHandler):
+                  protocol_version = "HTTP/1.1"
+
+                  def do_GET(self):
+                      if self.path not in ("/", "/health"):
+                          self.send_error(404)
+                          return
+                      if self.path == "/":
+                          hashlib.pbkdf2_hmac("sha256", b"seci-ti", b"lab", 25000)
+                      body = json.dumps({
+                          "service": "seci-ti-demo",
+                          "status": "ok",
+                          "host": socket.gethostname(),
+                      }).encode()
+                      self.send_response(200)
+                      self.send_header("Content-Type", "application/json")
+                      self.send_header("Content-Length", str(len(body)))
+                      self.end_headers()
+                      self.wfile.write(body)
+
+
+              ThreadingHTTPServer(("127.0.0.1", 8000), Handler).serve_forever()
+              PYTHON
+              chmod 644 /opt/seci-ti/app.py
+              cat > /etc/systemd/system/seci-ti-demo.service <<'SERVICE'
+              [Unit]
+              Description=SECI-TI laboratory HTTP demo
+              After=network.target
+
+              [Service]
+              ExecStart=/usr/bin/python3 /opt/seci-ti/app.py
+              User=nobody
+              Restart=always
+              RestartSec=2
+              NoNewPrivileges=true
+              ProtectSystem=strict
+              ProtectHome=true
+              PrivateTmp=true
+
+              [Install]
+              WantedBy=multi-user.target
+              SERVICE
+              cat > /etc/nginx/nginx.conf <<'NGINX'
+              user nginx;
+              worker_processes auto;
+              error_log /var/log/nginx/error.log warn;
+              pid /run/nginx.pid;
+              events { worker_connections 1024; }
+              http {
+                  access_log /var/log/nginx/access.log;
+                  server_tokens off;
+                  server {
+                      listen 80 default_server;
+                      server_name _;
+                      location / {
+                          proxy_pass http://127.0.0.1:8000;
+                          proxy_http_version 1.1;
+                          proxy_set_header Host $host;
+                          proxy_set_header Connection "";
+                          proxy_connect_timeout 2s;
+                          proxy_read_timeout 30s;
+                      }
+                  }
+              }
+              NGINX
+              nginx -t
+              systemctl daemon-reload
+              systemctl enable --now seci-ti-demo nginx
+              for attempt in $(seq 1 30); do
+                if curl --fail --silent --show-error --max-time 2 http://127.0.0.1/health; then
+                  break
+                fi
+                sleep 2
+              done
+              systemctl is-active --quiet seci-ti-demo nginx
+              curl --fail --silent --show-error --max-time 5 http://127.0.0.1/health
+              curl --fail --silent --show-error --max-time 5 http://127.0.0.1/
+              BOOTSTRAP
+  AppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - PublicDefaultRoute
+      - PublicSubnetOneRouteTableAssociation
+      - PublicSubnetTwoRouteTableAssociation
+      - HttpListener
+    CreationPolicy:
+      AutoScalingCreationPolicy:
+        MinSuccessfulInstancesPercent: 100
+      ResourceSignal:
+        Count: 2
+        Timeout: PT12M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 2
+        MaxBatchSize: 1
+        MinSuccessfulInstancesPercent: 100
+        PauseTime: PT12M
+        WaitOnResourceSignals: true
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - ScheduledActions
+    Properties:
+      MinSize: '2'
+      MaxSize: '4'
+      DesiredCapacity: '2'
+      VPCZoneIdentifier:
+        - Ref: PublicSubnetOne
+        - Ref: PublicSubnetTwo
+      LaunchTemplate:
+        LaunchTemplateId:
+          Ref: AppLaunchTemplate
+        Version:
+          Fn::GetAtt: [AppLaunchTemplate, LatestVersionNumber]
+      TargetGroupARNs:
+        - Ref: AppTargetGroup
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 600
+      DefaultInstanceWarmup: 120
+      MetricsCollection:
+        - Granularity: 1Minute
+          Metrics:
+            - GroupDesiredCapacity
+            - GroupInServiceInstances
+            - GroupPendingInstances
+            - GroupTerminatingInstances
+            - GroupTotalInstances
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: '${AWS::StackName}-app'
+          PropagateAtLaunch: true
+        - Key: Project
+          Value: SECI-TI
+          PropagateAtLaunch: true
+        - Key: Architecture
+          Value: C
+          PropagateAtLaunch: true
+        - Key: CaseId
+          Value:
+            Ref: CaseId
+          PropagateAtLaunch: true
+        - Key: StackName
+          Value:
+            Ref: AWS::StackName
+          PropagateAtLaunch: true
+  CpuTargetTracking:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName:
+        Ref: AppAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      EstimatedInstanceWarmup: 120
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 50.0
+        DisableScaleIn: false
+
+Outputs:
+  ApplicationUrl:
+    Description: Public laboratory HTTP endpoint (no TLS).
+    Value:
+      Fn::Sub: 'http://${LoadBalancer.DNSName}'
+  VpcId:
+    Value:
+      Ref: Vpc
+  LoadBalancerFullName:
+    Description: ApplicationELB LoadBalancer metric dimension.
+    Value:
+      Fn::GetAtt: [LoadBalancer, LoadBalancerFullName]
+  AutoScalingGroupName:
+    Description: AutoScaling and EC2 metric dimension.
+    Value:
+      Ref: AppAutoScalingGroup

@@ -1,3 +1,4 @@
+import json
 from json import JSONDecodeError
 from typing import Any
 
@@ -11,7 +12,8 @@ from app.ai.base import (
     AIResponseValidationError,
 )
 from app.ai.prompts.business_case_extractor import BUSINESS_CASE_EXTRACTOR_PROMPT
-from app.schemas.business_case import BusinessCaseAnalysis
+from app.schemas.business_case import BusinessCaseAnalysis, BusinessCaseExtraction
+from app.schemas.project_context import ProjectContext
 
 
 class OpenAIRequirementExtractor(AIRequirementExtractor):
@@ -27,7 +29,9 @@ class OpenAIRequirementExtractor(AIRequirementExtractor):
         self._timeout_seconds = timeout_seconds
         self._client = client
 
-    def extract_requirements(self, business_case: str) -> BusinessCaseAnalysis:
+    def extract_requirements(
+        self, business_case: str, project_context: ProjectContext | None = None
+    ) -> BusinessCaseAnalysis:
         if not self._api_key:
             raise AIConfigurationError("AI_API_KEY is not configured")
         if not self._model:
@@ -43,18 +47,30 @@ class OpenAIRequirementExtractor(AIRequirementExtractor):
                 model=self._model,
                 input=[
                     {"role": "system", "content": BUSINESS_CASE_EXTRACTOR_PROMPT},
-                    {"role": "user", "content": business_case},
+                    {
+                        "role": "user",
+                        "content": json.dumps(
+                            {
+                                "business_case": business_case,
+                                "project_context": project_context.model_dump(),
+                            },
+                            ensure_ascii=False,
+                        )
+                        if project_context and project_context.current_architecture
+                        else business_case,
+                    },
                 ],
-                text_format=BusinessCaseAnalysis,
+                text_format=BusinessCaseExtraction,
             )
             parsed = response.output_parsed
             if parsed is None:
                 raise AIResponseValidationError("The provider returned no parsed output")
 
-            analysis = BusinessCaseAnalysis.model_validate(parsed)
+            analysis = BusinessCaseExtraction.model_validate(parsed)
             payload = analysis.model_dump(mode="python")
             payload["business_case"] = business_case
             payload["requires_user_confirmation"] = True
+            payload["project_context"] = project_context or ProjectContext()
             return BusinessCaseAnalysis.model_validate(payload)
         except AIResponseValidationError:
             raise

@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "PB-01 requirement extraction API for SECI-TI"
 requires-python = ">=3.11"
 dependencies = [
+  "boto3>=1.35,<2.0",
   "fastapi>=0.115,<1.0",
   "openai>=1.66,<3.0",
   # Sin tope de version fijado a proposito: instalen con
@@ -25,6 +26,8 @@ dev = [
   "httpx>=0.28,<1.0",
   "pytest>=8.3,<9.0",
   "pytest-cov>=6.0,<7.0",
+  "PyYAML>=6.0,<7.0",
+  "cfn-lint>=1.30,<2.0",
   # Sin version fijada, mismo criterio que con google-genai: instalen y
   # confirmen la version real resuelta antes de depender de un rango que
   # no verificamos.

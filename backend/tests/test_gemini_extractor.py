@@ -1,6 +1,7 @@
 import json
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 
@@ -68,3 +69,28 @@ def test_other_invalid_responses_still_fail_validation() -> None:
 
     with pytest.raises(AIResponseValidationError):
         extractor_returning(payload).extract_requirements(CASE)
+
+
+@pytest.mark.parametrize("provider_fails", [False, True])
+def test_cleanup_failure_does_not_mask_analysis_or_a_controlled_provider_error(
+    client_factory,
+    monkeypatch,
+    provider_fails: bool,
+) -> None:
+    payload = analysis_payload()
+    payload.pop("requires_user_confirmation")
+    sdk = Mock()
+    sdk.models.generate_content.return_value = SimpleNamespace(text=json.dumps(payload))
+    if provider_fails:
+        sdk.models.generate_content.side_effect = TimeoutError("provider timeout")
+    sdk.close.side_effect = OSError("cleanup failure")
+    monkeypatch.setattr("app.ai.gemini_extractor.genai.Client", lambda **kwargs: sdk)
+    client = client_factory(extractor=GeminiRequirementExtractor("fake-key", "fake-model"))
+
+    response = client.post("/api/business-cases/analyze", json={"description": CASE})
+
+    assert response.status_code == (503 if provider_fails else 200)
+    assert "cleanup failure" not in response.text
+    if not provider_fails:
+        assert response.json()["business_case"] == CASE
+    sdk.close.assert_called_once()

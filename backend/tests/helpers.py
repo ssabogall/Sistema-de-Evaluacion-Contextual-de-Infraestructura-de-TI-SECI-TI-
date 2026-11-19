@@ -2,6 +2,7 @@ from typing import Any
 
 from app.ai.base import AIRequirementExtractor
 from app.schemas.business_case import BusinessCaseAnalysis
+from app.schemas.project_context import ProjectContext
 
 
 def requirement(
@@ -48,9 +49,12 @@ class StaticExtractor(AIRequirementExtractor):
         self.analysis = analysis or BusinessCaseAnalysis.model_validate(analysis_payload())
         self.error = error
 
-    def extract_requirements(self, business_case: str) -> BusinessCaseAnalysis:
+    def extract_requirements(
+        self, business_case: str, project_context: ProjectContext | None = None
+    ) -> BusinessCaseAnalysis:
         if self.error:
             raise self.error
         payload = self.analysis.model_dump(mode="python")
         payload["business_case"] = business_case
+        payload["project_context"] = project_context or ProjectContext()
         return BusinessCaseAnalysis.model_validate(payload)
